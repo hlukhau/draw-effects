@@ -12,8 +12,6 @@ import math
 class DrawingEffectGenerator:
     def __init__(self):
         self.styles = {
-            'oil': self._oil_painting_style,
-            'pastel': self._pastel_style,
             'pencil': self._pencil_style
         }
     
@@ -144,7 +142,7 @@ class DrawingEffectGenerator:
         stroke_layers = []
         covered_mask = np.zeros((h, w), dtype=np.uint8)  # Track what's already drawn
         
-        style_func = self.styles.get(style, self.styles['oil'])
+        style_func = self.styles.get(style, self.styles['pencil'])
         
         for i, (segment_type, segment_data, extra_data) in enumerate(detail_segments):
             if segment_type == 'color_regions':
@@ -321,42 +319,6 @@ class DrawingEffectGenerator:
                 cv2.line(strokes, (x, y), (end_x, end_y), color.tolist(), thickness=1)
         
         return strokes
-    
-    def _oil_painting_style(self, strokes, image, stroke_size):
-        """Apply oil painting style effects"""
-        if not np.any(strokes):
-            return strokes
-        
-        # Convert to PIL for oil painting effect
-        pil_strokes = Image.fromarray(strokes)
-        
-        # Apply oil painting effect (blur + enhance)
-        blurred = pil_strokes.filter(ImageFilter.GaussianBlur(radius=1.5))
-        enhanced = ImageEnhance.Color(blurred).enhance(1.3)
-        enhanced = ImageEnhance.Contrast(enhanced).enhance(1.2)
-        
-        # Add texture
-        textured = self._add_brush_texture(np.array(enhanced), strokes)
-        
-        return textured
-    
-    def _pastel_style(self, strokes, image, stroke_size):
-        """Apply pastel style effects"""
-        if not np.any(strokes):
-            return strokes
-        
-        # Soften colors
-        softened = cv2.bilateralFilter(strokes, 15, 50, 50)
-        
-        # Reduce saturation slightly
-        hsv = cv2.cvtColor(softened, cv2.COLOR_RGB2HSV)
-        hsv[:, :, 1] = hsv[:, :, 1] * 0.8  # Reduce saturation
-        softened = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-        
-        # Add soft texture
-        textured = self._add_soft_texture(softened, strokes)
-        
-        return textured
     
     def _pencil_style(self, strokes, image, stroke_size):
         """Apply pencil/hatching style effects"""
@@ -768,7 +730,7 @@ class DrawingEffectGenerator:
         
         return vis_image
     
-    def generate_segment_brush_strokes(self, output_dir, file_id, segment_id, brush_type='oil'):
+    def generate_segment_brush_strokes(self, output_dir, file_id, segment_id, brush_type='pencil', stroke_density=1.0):
         """
         Generate brush strokes for a specific segment based on its geometry and brush type
         
@@ -776,7 +738,8 @@ class DrawingEffectGenerator:
             output_dir: Directory containing segment data
             file_id: File identifier
             segment_id: ID of the segment to draw
-            brush_type: Type of brush ('oil', 'watercolor', 'pencil', 'marker', 'chalk')
+            brush_type: Type of brush ('pencil')
+            stroke_density: Density multiplier for stroke count (0.5-2.0)
             
         Returns:
             List of brush stroke data for frontend rendering
@@ -848,20 +811,21 @@ class DrawingEffectGenerator:
         print(f"Found {np.sum(mask)} pixels for segment {segment_id}")
         
         # Analyze segment geometry and generate brush strokes with brush type
-        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type)
+        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
         
         print(f"Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     
-    def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type):
+    def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density):
         """
         Analyze segment geometry and create appropriate brush strokes
         
         Args:
             mask: Boolean mask of the segment
             segment_info: Segment information including color
-            brush_type: Type of brush ('oil', 'watercolor', 'pencil', 'marker', 'chalk')
+            brush_type: Type of brush ('pencil')
+            stroke_density: Density multiplier for stroke count (0.5-2.0)
             
         Returns:
             List of brush stroke data
@@ -900,7 +864,7 @@ class DrawingEffectGenerator:
         
         # Special handling for pencil brush type
         if brush_type == 'pencil':
-            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width)
+            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density)
         
         if area < 100:
             # Very small segments: single dot or short stroke
@@ -937,7 +901,7 @@ class DrawingEffectGenerator:
         
         return brush_strokes
     
-    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width):
+    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density):
         """Generate pencil hatching strokes aligned with segment's longest axis"""
         strokes = []
         
@@ -951,30 +915,42 @@ class DrawingEffectGenerator:
         segment_height = bbox[2] - bbox[0]
         segment_width = bbox[3] - bbox[1]
         
-        # Determine stroke spacing and count based on segment size (further increased for maximum density)
+        # Determine stroke spacing and count based on segment size
         area = props.area
         if area < 50:
-            stroke_spacing = max(1, int(base_stroke_width * 0.3))  # Even closer spacing
-            num_strokes = max(12, int(area / 3))  # More strokes
+            base_spacing = max(1, int(base_stroke_width * 0.5))
+            base_strokes = max(8, int(area / 4))
         elif area < 200:
-            stroke_spacing = max(1, int(base_stroke_width * 0.4))
-            num_strokes = max(20, int(area / 6))
+            base_spacing = max(1, int(base_stroke_width * 0.6))
+            base_strokes = max(15, int(area / 8))
         else:
-            stroke_spacing = max(1, int(base_stroke_width * 0.5))
-            num_strokes = max(35, int(area / 8))
+            base_spacing = max(1, int(base_stroke_width * 0.7))
+            base_strokes = max(25, int(area / 10))
         
-        # Limit maximum number of strokes (further increased for maximum coverage)
-        num_strokes = min(num_strokes, 70)  # Increased limit for maximum density
+        # Apply density multiplier to increase stroke count
+        num_strokes = int(base_strokes * stroke_density)
+        stroke_spacing = max(1, int(base_spacing / stroke_density))
         
-        # Make pencil color slightly darker for visibility (only 5% darker)
+        # Limit maximum number of strokes based on density to prevent performance issues
+        # Allow more strokes for higher density values
+        if stroke_density <= 2.0:
+            max_strokes = 100
+        elif stroke_density <= 5.0:
+            max_strokes = 250
+        else:  # stroke_density up to 10.0
+            max_strokes = 500
+        
+        num_strokes = min(num_strokes, max_strokes)
+        
+        # Make pencil color slightly darker for visibility
         pencil_color = [
-            max(0, int(float(avg_color['r']) * 0.95)),
-            max(0, int(float(avg_color['g']) * 0.95)),
-            max(0, int(float(avg_color['b']) * 0.95))
-        ]  # Only slightly darker for visibility
+            max(0, int(float(avg_color['r']) * 0.9)),
+            max(0, int(float(avg_color['g']) * 0.9)),
+            max(0, int(float(avg_color['b']) * 0.9))
+        ]
         
         # Calculate appropriate brush width based on area
-        stroke_width = max(2, int(base_stroke_width * 1.0))  # Increased thickness
+        stroke_width = max(1, int(base_stroke_width * 0.8))  # Thinner for pencil effect
         
         # Generate primary hatching strokes along the major axis
         for i in range(num_strokes):
@@ -1015,13 +991,13 @@ class DrawingEffectGenerator:
                 continue
             
             # Generate stroke points (2-5 points as requested)
-            num_points = np.random.randint(2, 6)  # 2 to 5 points
+            num_points = np.random.randint(2, 6)
             stroke_points = []
             
             current_x, current_y = start_point
             
             # Calculate step size to create stroke of appropriate length
-            max_stroke_length = min(segment_width, segment_height) * 0.8  # Increased length
+            max_stroke_length = min(segment_width, segment_height) * 0.8
             step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
             
             for point_idx in range(num_points):
