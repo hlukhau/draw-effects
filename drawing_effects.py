@@ -15,16 +15,17 @@ class DrawingEffectGenerator:
             'pencil': self._pencil_style
         }
     
-    def create_drawing_video(self, input_path, output_path, style='oil', detail_level=3, video_duration=10, progress_callback=None):
+    def create_drawing_video(self, input_path, output_path, style='pencil', detail_level=3, video_duration=10, color_threshold=30, progress_callback=None):
         """
-        Create a drawing effect video from an input image
+        Create a drawing effect video from an input image following the same logic as interactive drawing
         
         Args:
             input_path: Path to input image
             output_path: Path for output video
-            style: Drawing style ('oil', 'pastel', 'pencil')
+            style: Drawing style ('pencil' only now)
             detail_level: Level of detail (1-5, higher = more detailed)
             video_duration: Duration of video in seconds
+            color_threshold: Color similarity threshold (10-100, lower = more segments)
             progress_callback: Function to call with progress updates
         """
         if progress_callback:
@@ -34,22 +35,31 @@ class DrawingEffectGenerator:
         image = self._load_and_preprocess_image(input_path)
         
         if progress_callback:
-            progress_callback(15, "Segmenting image by detail levels...")
+            progress_callback(15, "Generating image segmentation...")
         
-        # Segment image into different detail levels
-        detail_segments = self._segment_by_detail_levels(image, detail_level)
-        
-        if progress_callback:
-            progress_callback(30, f"Generating {style} style stroke patterns...")
-        
-        # Generate stroke patterns for each detail level
-        stroke_layers = self._generate_progressive_strokes(image, detail_segments, style)
+        # Generate segmentation (same as interactive mode)
+        segments_data = self._generate_video_segments(image, color_threshold, detail_level)
         
         if progress_callback:
-            progress_callback(60, "Creating animation frames...")
+            progress_callback(30, f"Sorting segments by size...")
         
-        # Create animation frames with progressive drawing
-        frames = self._create_progressive_animation(image, stroke_layers, video_duration)
+        # Sort segments by pixel count (largest first) - same as interactive drawing
+        sorted_segments = sorted(segments_data, key=lambda x: x['pixel_count'], reverse=True)
+        
+        if progress_callback:
+            progress_callback(40, f"Calculating video timing for {len(sorted_segments)} segments...")
+        
+        # Calculate timing for video duration
+        total_frames = int(video_duration * 30)  # 30 FPS
+        frames_per_segment = max(1, total_frames // len(sorted_segments)) if sorted_segments else 1
+        
+        if progress_callback:
+            progress_callback(50, "Creating animation frames...")
+        
+        # Create animation frames following the same logic as drawAllSegments
+        frames = self._create_segment_based_animation(
+            image, sorted_segments, frames_per_segment, total_frames, progress_callback
+        )
         
         if progress_callback:
             progress_callback(85, "Rendering video...")
@@ -76,7 +86,7 @@ class DrawingEffectGenerator:
         
         return img
     
-    def _segment_by_detail_levels(self, image, detail_level):
+    def _segment_by_detail_levels(self, image, detail_level, color_threshold):
         """
         Segment image into different detail levels using various techniques
         Returns segments from coarse to fine detail
@@ -88,9 +98,16 @@ class DrawingEffectGenerator:
         
         # Level 1: Large regions (color-based segmentation)
         # Use K-means clustering on colors to find large uniform regions
+        # Adjust number of clusters based on color_threshold
         resized_for_kmeans = cv2.resize(image, (w//4, h//4))
         pixels = resized_for_kmeans.reshape(-1, 3)
-        n_clusters = min(8, detail_level * 2)
+        
+        # Calculate number of clusters based on color_threshold and detail_level
+        # Lower color_threshold = more segments (more clusters)
+        # Higher color_threshold = fewer segments (fewer clusters)
+        base_clusters = max(4, min(16, int(100 / color_threshold * detail_level)))
+        n_clusters = min(base_clusters, detail_level * 2)
+        
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
         labels = kmeans.fit_predict(pixels)
         color_segments = labels.reshape(h//4, w//4)
@@ -928,10 +945,6 @@ class DrawingEffectGenerator:
             base_strokes = max(25, int(area / 10))
         
         # Apply density multiplier to increase stroke count
-        num_strokes = int(base_strokes * stroke_density)
-        stroke_spacing = max(1, int(base_spacing / stroke_density))
-        
-        # Limit maximum number of strokes based on density to prevent performance issues
         # Allow more strokes for higher density values
         if stroke_density <= 2.0:
             max_strokes = 100
@@ -939,6 +952,9 @@ class DrawingEffectGenerator:
             max_strokes = 250
         else:  # stroke_density up to 10.0
             max_strokes = 500
+        
+        num_strokes = int(base_strokes * stroke_density)
+        stroke_spacing = max(1, int(base_spacing / stroke_density))
         
         num_strokes = min(num_strokes, max_strokes)
         
@@ -1373,3 +1389,307 @@ class DrawingEffectGenerator:
                 })
         
         return strokes
+
+    def _generate_video_segments(self, image, color_threshold, detail_level):
+        """
+        Generate segments for video creation using the same logic as interactive mode
+        Returns list of segment data with pixel counts and colors
+        """
+        # Use K-means clustering to create segments (same as interactive segmentation)
+        h, w = image.shape[:2]
+        
+        # Calculate number of clusters based on color_threshold and detail_level
+        base_clusters = max(4, min(16, int(100 / color_threshold * detail_level)))
+        n_clusters = min(base_clusters, detail_level * 3)
+        
+        # Reshape image for K-means
+        pixels = image.reshape(-1, 3)
+        
+        # Apply K-means clustering
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(pixels)
+        segmented_image = labels.reshape(h, w)
+        
+        # Create segment data similar to interactive mode
+        segments_data = []
+        for segment_id in range(n_clusters):
+            # Find pixels belonging to this segment
+            mask = (segmented_image == segment_id)
+            pixel_count = np.sum(mask)
+            
+            if pixel_count > 10:  # Only include segments with reasonable size
+                # Calculate mean color for this segment
+                segment_pixels = image[mask]
+                mean_color = np.mean(segment_pixels, axis=0).astype(int)
+                
+                segments_data.append({
+                    'id': segment_id,
+                    'mask': mask,
+                    'pixel_count': pixel_count,
+                    'mean_color': mean_color,
+                    'cluster_center': kmeans.cluster_centers_[segment_id]
+                })
+        
+        return segments_data
+    
+    def _create_segment_based_animation(self, image, sorted_segments, frames_per_segment, total_frames, progress_callback):
+        """
+        Create animation frames by drawing segments one by one, following interactive drawing logic
+        """
+        h, w = image.shape[:2]
+        frames = []
+        
+        # Start with cream background (same as interactive mode)
+        canvas = np.full((h, w, 3), [255, 243, 205], dtype=np.uint8)  # Cream color #fff3cd
+        
+        # Add initial preview frames (empty canvas)
+        preview_frames = min(15, total_frames // 10)  # Show empty canvas for ~0.5 seconds
+        for _ in range(preview_frames):
+            frames.append(canvas.copy())
+        
+        # Calculate remaining frames for actual drawing
+        drawing_frames = total_frames - preview_frames - 30  # Reserve 30 frames for final hold
+        frames_per_segment = max(1, drawing_frames // len(sorted_segments)) if sorted_segments else 1
+        
+        current_frame = 0
+        total_segments = len(sorted_segments)
+        
+        for segment_idx, segment_data in enumerate(sorted_segments):
+            if progress_callback and segment_idx % 5 == 0:  # Update progress every 5 segments
+                progress = 50 + int(35 * segment_idx / total_segments)
+                progress_callback(progress, f"Drawing segment {segment_idx + 1}/{total_segments}...")
+            
+            # Generate brush strokes for this segment
+            segment_strokes = self._generate_segment_strokes_for_video(image, segment_data)
+            
+            # Create frames showing progressive drawing of this segment
+            segment_frames = self._create_segment_drawing_frames(
+                canvas, segment_strokes, frames_per_segment
+            )
+            
+            # Add segment frames to total frames
+            frames.extend(segment_frames)
+            
+            # Update canvas with completed segment
+            if segment_strokes:
+                canvas = segment_frames[-1].copy()
+            
+            current_frame += len(segment_frames)
+        
+        # Add final hold frames (show completed drawing for 1 second)
+        for _ in range(30):
+            frames.append(canvas.copy())
+        
+        return frames
+    
+    def _generate_segment_strokes_for_video(self, image, segment_data):
+        """
+        Generate brush strokes for a single segment (for video generation)
+        Uses the same logic as the interactive drawing but works directly with image data
+        """
+        mask = segment_data['mask']
+        mean_color = segment_data['mean_color']
+        
+        # Use the same stroke generation logic as interactive mode
+        # Default stroke density of 1.0 for video
+        stroke_density = 1.0
+        
+        # Create a mock segment object similar to what _analyze_segment_and_create_strokes expects
+        # Ensure color values are properly formatted as integers
+        try:
+            # Convert numpy values to Python integers safely
+            r_val = int(np.round(float(mean_color[0])))
+            g_val = int(np.round(float(mean_color[1])))
+            b_val = int(np.round(float(mean_color[2])))
+        except (ValueError, TypeError, IndexError) as e:
+            print(f"Warning: Error parsing color values {mean_color}: {e}")
+            # Use default gray color if parsing fails
+            r_val, g_val, b_val = 128, 128, 128
+        
+        mock_segment = {
+            'id': segment_data['id'],
+            'pixel_count': segment_data['pixel_count'],
+            'average_color': {
+                'r': r_val,
+                'g': g_val,
+                'b': b_val
+            }
+        }
+        
+        # Generate strokes using the existing method that works with masks directly
+        strokes = self._analyze_segment_and_create_strokes(mask, mock_segment, 'pencil', stroke_density)
+        
+        return strokes
+    
+    def _create_segment_drawing_frames(self, canvas, strokes, num_frames):
+        """
+        Create frames showing progressive drawing of a single segment
+        """
+        frames = []
+        
+        if not strokes or num_frames <= 0:
+            frames.append(canvas.copy())
+            return frames
+        
+        # Group strokes by type for proper layering
+        stroke_groups = {}
+        for stroke in strokes:
+            stroke_type = stroke.get('type', 'pencil')
+            if stroke_type not in stroke_groups:
+                stroke_groups[stroke_type] = []
+            stroke_groups[stroke_type].append(stroke)
+        
+        # Calculate strokes per frame
+        total_strokes = len(strokes)
+        strokes_per_frame = max(1, total_strokes // num_frames)
+        
+        current_canvas = canvas.copy()
+        stroke_index = 0
+        
+        for frame_idx in range(num_frames):
+            frame_canvas = current_canvas.copy()
+            
+            # Add strokes for this frame
+            strokes_to_add = min(strokes_per_frame, total_strokes - stroke_index)
+            
+            for i in range(strokes_to_add):
+                if stroke_index < total_strokes:
+                    stroke = strokes[stroke_index]
+                    self._apply_stroke_to_canvas(frame_canvas, stroke)
+                    stroke_index += 1
+            
+            frames.append(frame_canvas.copy())
+            current_canvas = frame_canvas.copy()
+        
+        return frames
+    
+    def _apply_stroke_to_canvas(self, canvas, stroke):
+        """
+        Apply a single brush stroke to the canvas
+        """
+        if 'points' not in stroke or len(stroke['points']) == 0:
+            return
+        
+        color = stroke.get('color', [0, 0, 0])
+        width = max(1, int(stroke.get('width', 2)))
+        points = stroke['points']
+        
+        # Convert color to BGR for OpenCV
+        bgr_color = tuple(map(int, color[::-1]))
+        
+        if len(points) == 1:
+            # Single point - draw a dot
+            x, y = int(points[0][0]), int(points[0][1])
+            if 0 <= x < canvas.shape[1] and 0 <= y < canvas.shape[0]:
+                cv2.circle(canvas, (x, y), width, bgr_color, -1)
+        else:
+            # Multiple points - draw lines
+            for i in range(len(points) - 1):
+                pt1 = (int(points[i][0]), int(points[i][1]))
+                pt2 = (int(points[i + 1][0]), int(points[i + 1][1]))
+                
+                # Check bounds
+                if (0 <= pt1[0] < canvas.shape[1] and 0 <= pt1[1] < canvas.shape[0] and
+                    0 <= pt2[0] < canvas.shape[1] and 0 <= pt2[1] < canvas.shape[0]):
+                    cv2.line(canvas, pt1, pt2, bgr_color, width)
+
+    def create_video_from_canvas_frames(self, frames, file_id, duration, frame_rate):
+        """
+        Create video from captured canvas frames
+        
+        Args:
+            frames: List of frame data with dataURL and timestamp
+            file_id: File identifier for naming
+            duration: Target video duration in seconds
+            frame_rate: Target frame rate
+            
+        Returns:
+            Path to created video file
+        """
+        import base64
+        from io import BytesIO
+        from PIL import Image
+        
+        try:
+            output_path = os.path.join(self.output_dir, f"{file_id}_canvas_video.mp4")
+            
+            # Convert frame data URLs to PIL Images
+            pil_frames = []
+            for frame_data in frames:
+                try:
+                    # Extract base64 data from data URL
+                    data_url = frame_data['dataURL']
+                    if data_url.startswith('data:image/jpeg;base64,'):
+                        base64_data = data_url.split(',')[1]
+                        image_data = base64.b64decode(base64_data)
+                        
+                        # Convert to PIL Image
+                        pil_image = Image.open(BytesIO(image_data))
+                        
+                        # Convert to RGB if necessary
+                        if pil_image.mode != 'RGB':
+                            pil_image = pil_image.convert('RGB')
+                        
+                        pil_frames.append(pil_image)
+                        
+                except Exception as e:
+                    print(f"Warning: Failed to process frame: {e}")
+                    continue
+            
+            if not pil_frames:
+                print("Error: No valid frames to create video")
+                return None
+            
+            print(f"Creating video from {len(pil_frames)} canvas frames...")
+            
+            # Get frame dimensions from first frame
+            width, height = pil_frames[0].size
+            
+            # Create video writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter(output_path, fourcc, frame_rate, (width, height))
+            
+            if not video_writer.isOpened():
+                print("Error: Could not open video writer")
+                return None
+            
+            # Calculate how many times to repeat each frame to match target duration
+            target_total_frames = int(duration * frame_rate)
+            frame_repeat_count = max(1, target_total_frames // len(pil_frames))
+            
+            # Write frames to video
+            frames_written = 0
+            for pil_frame in pil_frames:
+                # Convert PIL image to OpenCV format (BGR)
+                opencv_frame = cv2.cvtColor(np.array(pil_frame), cv2.COLOR_RGB2BGR)
+                
+                # Write frame multiple times to achieve target duration
+                for _ in range(frame_repeat_count):
+                    video_writer.write(opencv_frame)
+                    frames_written += 1
+                    
+                    # Stop if we've reached target duration
+                    if frames_written >= target_total_frames:
+                        break
+                
+                if frames_written >= target_total_frames:
+                    break
+            
+            # Fill remaining time if needed
+            if frames_written < target_total_frames and pil_frames:
+                last_frame = cv2.cvtColor(np.array(pil_frames[-1]), cv2.COLOR_RGB2BGR)
+                for _ in range(target_total_frames - frames_written):
+                    video_writer.write(last_frame)
+            
+            video_writer.release()
+            
+            print(f"Video created successfully: {output_path}")
+            print(f"Total frames written: {frames_written}, Target: {target_total_frames}")
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"Error creating video from canvas frames: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
