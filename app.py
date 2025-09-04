@@ -63,8 +63,9 @@ def process_image():
     data = request.get_json()
     file_id = data.get('file_id')
     style = data.get('style', 'oil')
-    detail_level = data.get('detail_level', 3)
+    color_threshold = data.get('color_threshold', 30)
     video_duration = data.get('video_duration', 10)
+    mode = data.get('mode', 'segmentation')  # 'segmentation' or 'video'
     
     if not file_id:
         return jsonify({'error': 'No file ID provided'}), 400
@@ -89,16 +90,15 @@ def process_image():
     # Start processing in background thread
     thread = threading.Thread(
         target=process_image_background,
-        args=(file_id, uploaded_file, style, detail_level, video_duration)
+        args=(file_id, uploaded_file, style, color_threshold, video_duration, mode)
     )
     thread.start()
     
     return jsonify({'success': True, 'file_id': file_id})
 
-def process_image_background(file_id, filename, style, detail_level, video_duration):
+def process_image_background(file_id, filename, style, color_threshold, video_duration, mode):
     try:
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_drawing.mp4")
         
         # Create drawing effect generator
         generator = DrawingEffectGenerator()
@@ -111,22 +111,42 @@ def process_image_background(file_id, filename, style, detail_level, video_durat
                 'message': message
             }
         
-        # Generate drawing effect video
-        generator.create_drawing_video(
-            input_path, 
-            output_path, 
-            style=style, 
-            detail_level=detail_level,
-            video_duration=video_duration,
-            progress_callback=update_status
-        )
-        
-        processing_status[file_id] = {
-            'status': 'completed',
-            'progress': 100,
-            'message': 'Video generation completed!',
-            'output_file': f"{file_id}_drawing.mp4"
-        }
+        if mode == 'segmentation':
+            # Generate segmentation images
+            output_files = generator.create_segmentation_images(
+                input_path, 
+                app.config['OUTPUT_FOLDER'],
+                file_id,
+                color_threshold=color_threshold,
+                progress_callback=update_status
+            )
+            
+            processing_status[file_id] = {
+                'status': 'completed',
+                'progress': 100,
+                'message': 'Segmentation completed!',
+                'output_files': output_files,
+                'mode': 'segmentation'
+            }
+        else:
+            # Generate drawing effect video
+            output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_drawing.mp4")
+            generator.create_drawing_video(
+                input_path, 
+                output_path, 
+                style=style, 
+                color_threshold=color_threshold,
+                video_duration=video_duration,
+                progress_callback=update_status
+            )
+            
+            processing_status[file_id] = {
+                'status': 'completed',
+                'progress': 100,
+                'message': 'Video generation completed!',
+                'output_file': f"{file_id}_drawing.mp4",
+                'mode': 'video'
+            }
         
     except Exception as e:
         processing_status[file_id] = {
@@ -159,6 +179,46 @@ def preview_video(file_id):
         return send_file(output_path)
     else:
         return jsonify({'error': 'File not found'}), 404
+
+@app.route('/segmentation/<file_id>')
+def get_segmentation(file_id):
+    status = processing_status.get(file_id, {'status': 'not_found'})
+    if status['mode'] == 'segmentation':
+        output_files = status['output_files']
+        return jsonify({'output_files': output_files})
+    else:
+        return jsonify({'error': 'Segmentation not available'}), 404
+
+@app.route('/outputs/<filename>')
+def serve_output_file(filename):
+    return send_file(os.path.join(app.config['OUTPUT_FOLDER'], filename))
+
+@app.route('/draw_segment', methods=['POST'])
+def draw_segment():
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        segment_id = data.get('segment_id')
+        
+        if not file_id or segment_id is None:
+            return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
+        
+        # Generate brush strokes for the segment
+        generator = DrawingEffectGenerator()
+        brush_strokes = generator.generate_segment_brush_strokes(
+            output_dir=app.config['OUTPUT_FOLDER'],
+            file_id=file_id,
+            segment_id=segment_id
+        )
+        
+        return jsonify({
+            'success': True,
+            'brush_strokes': brush_strokes
+        })
+        
+    except Exception as e:
+        print(f"Error in draw_segment: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002)

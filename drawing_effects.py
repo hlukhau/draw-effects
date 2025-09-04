@@ -516,3 +516,545 @@ class DrawingEffectGenerator:
         if size % 2 == 0:  # If even, make it odd
             size += 1
         return size
+    
+    def create_segmentation_images(self, input_path, output_dir, file_id, color_threshold=30, progress_callback=None):
+        """
+        Create segmentation images based on color similarity with adjustable threshold
+        
+        Args:
+            input_path: Path to input image
+            output_dir: Directory to save segmentation images
+            file_id: Unique file identifier
+            color_threshold: Color similarity threshold (10-100, lower = more segments)
+            progress_callback: Function to call with progress updates
+        
+        Returns:
+            List of output filenames
+        """
+        if progress_callback:
+            progress_callback(5, "Loading and preprocessing image...")
+        
+        # Clean up old segmentation files for this file_id
+        self._cleanup_old_segmentation_files(output_dir, file_id)
+        
+        # Load and preprocess image
+        image = self._load_and_preprocess_image(input_path)
+        
+        if progress_callback:
+            progress_callback(20, "Creating color-based segmentation...")
+        
+        # Create segmentation with the specified threshold
+        segments = self._segment_by_color_similarity(image, color_threshold)
+        
+        if progress_callback:
+            progress_callback(50, "Computing average colors for segments...")
+        
+        # Compute average colors for each segment
+        segment_info = self._compute_segment_average_colors(image, segments)
+        
+        if progress_callback:
+            progress_callback(70, "Creating visualization images...")
+        
+        output_files = []
+        
+        # Save original image for reference
+        original_filename = f"{file_id}_00_original_t{color_threshold}.png"
+        original_path = os.path.join(output_dir, original_filename)
+        cv2.imwrite(original_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        output_files.append(original_filename)
+        
+        # Create and save segmentation visualization (colored segments)
+        vis_image = self._visualize_color_segments_simple(image, segments)
+        segments_filename = f"{file_id}_01_segments_t{color_threshold}.png"
+        segments_path = os.path.join(output_dir, segments_filename)
+        cv2.imwrite(segments_path, cv2.cvtColor(vis_image, cv2.COLOR_RGB2BGR))
+        output_files.append(segments_filename)
+        
+        # Create and save mean color image
+        mean_color_image = self._create_mean_color_image(image, segments, segment_info)
+        mean_filename = f"{file_id}_02_mean_colors_t{color_threshold}.png"
+        mean_path = os.path.join(output_dir, mean_filename)
+        cv2.imwrite(mean_path, cv2.cvtColor(mean_color_image, cv2.COLOR_RGB2BGR))
+        output_files.append(mean_filename)
+        
+        # Save segment information as JSON
+        import json
+        segment_data = {
+            'threshold': color_threshold,
+            'total_segments': len(segment_info),
+            'segments': [
+                {
+                    'id': int(seg_id),
+                    'pixel_count': int(info['pixel_count']),
+                    'average_color': {
+                        'r': int(info['avg_color'][0]),
+                        'g': int(info['avg_color'][1]),
+                        'b': int(info['avg_color'][2])
+                    },
+                    'average_color_hex': f"#{int(info['avg_color'][0]):02x}{int(info['avg_color'][1]):02x}{int(info['avg_color'][2]):02x}"
+                }
+                for seg_id, info in segment_info.items()
+            ]
+        }
+        
+        json_filename = f"{file_id}_03_segment_info_t{color_threshold}.json"
+        json_path = os.path.join(output_dir, json_filename)
+        with open(json_path, 'w') as f:
+            json.dump(segment_data, f, indent=2)
+        output_files.append(json_filename)
+        
+        if progress_callback:
+            progress_callback(100, f"Segmentation completed! Found {len(segment_info)} segments.")
+        
+        return output_files
+    
+    def _cleanup_old_segmentation_files(self, output_dir, file_id):
+        """Remove old segmentation files for this file_id to prevent confusion"""
+        import glob
+        
+        # Patterns to match old segmentation files
+        patterns = [
+            f"{file_id}_*_original_t*.png",
+            f"{file_id}_*_segments_t*.png", 
+            f"{file_id}_*_mean_colors_t*.png",
+            f"{file_id}_*_segment_info_t*.json"
+        ]
+        
+        for pattern in patterns:
+            files_to_remove = glob.glob(os.path.join(output_dir, pattern))
+            for file_path in files_to_remove:
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass  # Ignore errors if file doesn't exist or can't be removed
+    
+    def _compute_segment_average_colors(self, image, segments):
+        """
+        Compute average color for each segment
+        
+        Args:
+            image: Original RGB image
+            segments: Segmented image with segment IDs
+            
+        Returns:
+            Dictionary with segment info: {segment_id: {'avg_color': [r,g,b], 'pixel_count': count}}
+        """
+        unique_segments = np.unique(segments)
+        unique_segments = unique_segments[unique_segments > 0]  # Exclude background
+        
+        segment_info = {}
+        
+        for segment_id in unique_segments:
+            mask = (segments == segment_id)
+            segment_pixels = image[mask]
+            
+            if len(segment_pixels) > 0:
+                avg_color = np.mean(segment_pixels, axis=0)
+                segment_info[segment_id] = {
+                    'avg_color': avg_color,
+                    'pixel_count': len(segment_pixels)
+                }
+        
+        return segment_info
+    
+    def _create_mean_color_image(self, image, segments, segment_info):
+        """
+        Create image where each segment is filled with its average color
+        
+        Args:
+            image: Original image
+            segments: Segmented image
+            segment_info: Dictionary with segment average colors
+            
+        Returns:
+            Image with segments filled with average colors
+        """
+        mean_image = np.zeros_like(image)
+        
+        for segment_id, info in segment_info.items():
+            mask = (segments == segment_id)
+            mean_image[mask] = info['avg_color']
+        
+        return mean_image.astype(np.uint8)
+    
+    def _segment_by_color_similarity(self, image, threshold):
+        """
+        Segment image based on color similarity using region growing
+        
+        Args:
+            image: Input image (RGB)
+            threshold: Color similarity threshold
+            
+        Returns:
+            Segmented image with different segment IDs
+        """
+        h, w = image.shape[:2]
+        segments = np.zeros((h, w), dtype=np.int32)
+        visited = np.zeros((h, w), dtype=bool)
+        segment_id = 1
+        
+        # Convert threshold to a reasonable range for color distance
+        color_threshold = threshold * 2.55  # Scale to 0-255 range
+        
+        for y in range(0, h, 2):  # Skip every other pixel for speed
+            for x in range(0, w, 2):
+                if not visited[y, x]:
+                    # Start new segment from this pixel
+                    segment_pixels = self._region_growing(image, (x, y), color_threshold, visited)
+                    
+                    # Only create segment if it has enough pixels
+                    if len(segment_pixels) > 20:  # Minimum segment size
+                        for px, py in segment_pixels:
+                            segments[py, px] = segment_id
+                        segment_id += 1
+        
+        return segments
+    
+    def _region_growing(self, image, seed, threshold, visited):
+        """
+        Region growing algorithm for color-based segmentation
+        """
+        h, w = image.shape[:2]
+        seed_x, seed_y = seed
+        
+        if visited[seed_y, seed_x]:
+            return []
+        
+        seed_color = image[seed_y, seed_x].astype(np.float32)
+        region_pixels = []
+        stack = [(seed_x, seed_y)]
+        
+        while stack:
+            x, y = stack.pop()
+            
+            if x < 0 or x >= w or y < 0 or y >= h or visited[y, x]:
+                continue
+            
+            pixel_color = image[y, x].astype(np.float32)
+            color_distance = np.sqrt(np.sum((pixel_color - seed_color) ** 2))
+            
+            if color_distance <= threshold:
+                visited[y, x] = True
+                region_pixels.append((x, y))
+                
+                # Add neighbors to stack
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx]:
+                        stack.append((nx, ny))
+        
+        return region_pixels
+    
+    def _visualize_color_segments_simple(self, image, segments):
+        """Visualize color-based segmentation with random colors for each segment"""
+        h, w = image.shape[:2]
+        vis_image = np.zeros_like(image)
+        
+        # Get unique segment IDs
+        unique_segments = np.unique(segments)
+        unique_segments = unique_segments[unique_segments > 0]  # Exclude background
+        
+        # Generate random colors for each segment
+        np.random.seed(42)  # For consistent colors
+        colors = np.random.randint(0, 256, (len(unique_segments), 3))
+        
+        for i, segment_id in enumerate(unique_segments):
+            mask = (segments == segment_id)
+            if np.any(mask):
+                vis_image[mask] = colors[i]
+        
+        # Keep background black
+        vis_image[segments == 0] = [0, 0, 0]
+        
+        return vis_image
+    
+    def generate_segment_brush_strokes(self, output_dir, file_id, segment_id):
+        """
+        Generate brush strokes for a specific segment based on its geometry
+        
+        Args:
+            output_dir: Directory containing segment data
+            file_id: File identifier
+            segment_id: ID of the segment to draw
+            
+        Returns:
+            List of brush stroke data for frontend rendering
+        """
+        import json
+        import math
+        from scipy import ndimage
+        from skimage import measure
+        
+        # Load segment information - look in the outputs directory
+        outputs_dir = os.path.join(os.path.dirname(output_dir), 'outputs')
+        if not os.path.exists(outputs_dir):
+            outputs_dir = output_dir  # fallback to original directory
+        
+        print(f"Looking for segment files in: {outputs_dir}")
+        print(f"Files in directory: {os.listdir(outputs_dir) if os.path.exists(outputs_dir) else 'Directory not found'}")
+        
+        json_files = [f for f in os.listdir(outputs_dir) if f.startswith(f"{file_id}_") and f.endswith('.json')]
+        if not json_files:
+            # Try alternative pattern matching
+            json_files = [f for f in os.listdir(outputs_dir) if file_id in f and f.endswith('.json')]
+            
+        if not json_files:
+            raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
+        
+        json_path = os.path.join(outputs_dir, json_files[0])
+        print(f"Loading segment data from: {json_path}")
+        
+        with open(json_path, 'r') as f:
+            segment_data = json.load(f)
+        
+        # Find the target segment
+        target_segment = None
+        for segment in segment_data['segments']:
+            if segment['id'] == segment_id:
+                target_segment = segment
+                break
+        
+        if not target_segment:
+            raise Exception(f"Segment {segment_id} not found in {len(segment_data['segments'])} segments")
+        
+        # Load the mean color image to get segment mask
+        mean_color_files = [f for f in os.listdir(outputs_dir) 
+                           if f.startswith(f"{file_id}_") and 'mean_colors' in f and f.endswith('.png')]
+        if not mean_color_files:
+            # Try alternative pattern matching
+            mean_color_files = [f for f in os.listdir(outputs_dir) 
+                               if file_id in f and 'mean_colors' in f and f.endswith('.png')]
+            
+        if not mean_color_files:
+            raise Exception(f"Mean color image not found for file_id: {file_id}")
+        
+        mean_color_path = os.path.join(outputs_dir, mean_color_files[0])
+        print(f"Loading mean color image from: {mean_color_path}")
+        
+        mean_image = cv2.imread(mean_color_path)
+        mean_image = cv2.cvtColor(mean_image, cv2.COLOR_BGR2RGB)
+        
+        # Create mask for the target segment
+        target_color = np.array([
+            target_segment['average_color']['r'],
+            target_segment['average_color']['g'], 
+            target_segment['average_color']['b']
+        ])
+        
+        # Find pixels matching the segment color
+        mask = np.all(mean_image == target_color, axis=2)
+        
+        print(f"Found {np.sum(mask)} pixels for segment {segment_id}")
+        
+        # Analyze segment geometry and generate brush strokes
+        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment)
+        
+        print(f"Generated {len(brush_strokes)} brush strokes for segment {segment_id}")
+        
+        return brush_strokes
+    
+    def _analyze_segment_and_create_strokes(self, mask, segment_info):
+        """
+        Analyze segment geometry and create appropriate brush strokes
+        
+        Args:
+            mask: Boolean mask of the segment
+            segment_info: Segment information including color
+            
+        Returns:
+            List of brush stroke data
+        """
+        from scipy import ndimage
+        from skimage import measure, morphology
+        import math
+        
+        # Get segment properties
+        labeled_mask = measure.label(mask)
+        regions = measure.regionprops(labeled_mask)
+        
+        if not regions:
+            return []
+        
+        # Use the largest region if multiple exist
+        main_region = max(regions, key=lambda r: r.area)
+        
+        # Extract geometric properties
+        centroid = main_region.centroid
+        bbox = main_region.bbox  # (min_row, min_col, max_row, max_col)
+        area = main_region.area
+        perimeter = main_region.perimeter
+        
+        # Calculate dimensions
+        height = bbox[2] - bbox[0]
+        width = bbox[3] - bbox[1]
+        aspect_ratio = width / height if height > 0 else 1
+        
+        # Determine brush strategy based on geometry
+        brush_strokes = []
+        segment_color = f"#{segment_info['average_color']['r']:02x}{segment_info['average_color']['g']:02x}{segment_info['average_color']['b']:02x}"
+        
+        # Calculate appropriate brush width based on area
+        brush_width = max(2, min(15, int(math.sqrt(area) / 10)))
+        
+        if area < 100:
+            # Very small segments: single dot or short stroke
+            brush_strokes.append({
+                'color': segment_color,
+                'width': max(2, brush_width // 2),
+                'points': [
+                    {'x': int(centroid[1]), 'y': int(centroid[0])}
+                ]
+            })
+            
+        elif aspect_ratio > 3:
+            # Long horizontal segments: horizontal strokes
+            brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, brush_width))
+            
+        elif aspect_ratio < 0.33:
+            # Long vertical segments: vertical strokes  
+            brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, brush_width))
+            
+        elif area < 500:
+            # Small to medium segments: radial strokes from center
+            brush_strokes.extend(self._create_radial_strokes(mask, segment_color, brush_width))
+            
+        else:
+            # Large segments: combination of techniques
+            if width > height:
+                brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, brush_width))
+            else:
+                brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, brush_width))
+            
+            # Add some cross-hatching for texture
+            brush_strokes.extend(self._create_cross_hatch_strokes(mask, segment_color, brush_width // 2))
+        
+        return brush_strokes
+    
+    def _create_horizontal_strokes(self, mask, color, brush_width):
+        """Create horizontal brush strokes across the segment"""
+        strokes = []
+        h, w = mask.shape
+        
+        # Find y coordinates where the segment exists
+        y_coords = np.where(np.any(mask, axis=1))[0]
+        
+        # Create strokes every few pixels vertically
+        step = max(2, brush_width // 2)
+        for y in y_coords[::step]:
+            # Find x range for this y coordinate
+            x_coords = np.where(mask[y, :])[0]
+            if len(x_coords) > 0:
+                x_start, x_end = x_coords[0], x_coords[-1]
+                
+                # Create stroke points
+                points = []
+                num_points = max(2, (x_end - x_start) // 5)
+                for i in range(num_points):
+                    x = x_start + (x_end - x_start) * i / (num_points - 1)
+                    points.append({'x': int(x), 'y': int(y)})
+                
+                if len(points) > 1:
+                    strokes.append({
+                        'color': color,
+                        'width': brush_width,
+                        'points': points
+                    })
+        
+        return strokes
+    
+    def _create_vertical_strokes(self, mask, color, brush_width):
+        """Create vertical brush strokes across the segment"""
+        strokes = []
+        h, w = mask.shape
+        
+        # Find x coordinates where the segment exists
+        x_coords = np.where(np.any(mask, axis=0))[0]
+        
+        # Create strokes every few pixels horizontally
+        step = max(2, brush_width // 2)
+        for x in x_coords[::step]:
+            # Find y range for this x coordinate
+            y_coords = np.where(mask[:, x])[0]
+            if len(y_coords) > 0:
+                y_start, y_end = y_coords[0], y_coords[-1]
+                
+                # Create stroke points
+                points = []
+                num_points = max(2, (y_end - y_start) // 5)
+                for i in range(num_points):
+                    y = y_start + (y_end - y_start) * i / (num_points - 1)
+                    points.append({'x': int(x), 'y': int(y)})
+                
+                if len(points) > 1:
+                    strokes.append({
+                        'color': color,
+                        'width': brush_width,
+                        'points': points
+                    })
+        
+        return strokes
+    
+    def _create_radial_strokes(self, mask, color, brush_width):
+        """Create radial brush strokes from the center of the segment"""
+        from skimage import measure
+        
+        strokes = []
+        labeled_mask = measure.label(mask)
+        regions = measure.regionprops(labeled_mask)
+        
+        if not regions:
+            return strokes
+        
+        main_region = max(regions, key=lambda r: r.area)
+        centroid = main_region.centroid
+        
+        # Create strokes in different directions from center
+        angles = [0, 45, 90, 135, 180, 225, 270, 315]
+        
+        for angle in angles:
+            radians = math.radians(angle)
+            dx = math.cos(radians)
+            dy = math.sin(radians)
+            
+            points = []
+            # Start from center and move outward
+            for distance in range(0, 30, 3):
+                x = int(centroid[1] + dx * distance)
+                y = int(centroid[0] + dy * distance)
+                
+                # Check if point is within image bounds and segment
+                if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1] and mask[y, x]:
+                    points.append({'x': x, 'y': y})
+                else:
+                    break
+            
+            if len(points) > 1:
+                strokes.append({
+                    'color': color,
+                    'width': brush_width,
+                    'points': points
+                })
+        
+        return strokes
+    
+    def _create_cross_hatch_strokes(self, mask, color, brush_width):
+        """Create cross-hatching strokes for texture"""
+        strokes = []
+        h, w = mask.shape
+        
+        # Diagonal strokes (45 degrees)
+        for offset in range(-max(h, w), max(h, w), brush_width * 3):
+            points = []
+            for x in range(w):
+                y = x + offset
+                if 0 <= y < h and mask[y, x]:
+                    points.append({'x': x, 'y': y})
+            
+            if len(points) > 2:
+                strokes.append({
+                    'color': color,
+                    'width': brush_width,
+                    'points': points
+                })
+        
+        return strokes
