@@ -1,0 +1,9 @@
+Flask==2.3.3
+Werkzeug==2.3.7
+opencv-python==4.8.1.78
+numpy==1.24.3
+Pillow==10.0.1
+scipy==1.11.3
+scikit-image==0.21.0
+imageio==2.31.5
+imageio-ffmpeg==0.4.9
