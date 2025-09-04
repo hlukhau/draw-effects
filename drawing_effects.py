@@ -374,11 +374,14 @@ class DrawingEffectGenerator:
         
         return pencil_strokes
     
-    def _add_brush_texture(self, image, mask):
+    def _add_brush_texture(self, image, strokes):
         """Add brush texture to oil painting"""
         # Create random brush strokes
         textured = image.copy()
         h, w = image.shape[:2]
+        
+        # Create mask from strokes
+        mask = np.any(strokes > 0, axis=2) if len(strokes.shape) == 3 else strokes > 0
         
         # Add random variations to simulate brush texture
         for _ in range(50):
@@ -399,9 +402,12 @@ class DrawingEffectGenerator:
         
         return textured.astype(np.uint8)
     
-    def _add_soft_texture(self, image, mask):
+    def _add_soft_texture(self, image, strokes):
         """Add soft texture for pastel effect"""
         textured = image.copy().astype(np.float32)
+        
+        # Create mask from strokes
+        mask = np.any(strokes > 0, axis=2) if len(strokes.shape) == 3 else strokes > 0
         
         # Add subtle noise for pastel texture
         noise = np.random.normal(0, 3, image.shape)
@@ -409,18 +415,30 @@ class DrawingEffectGenerator:
         
         return np.clip(textured, 0, 255).astype(np.uint8)
     
-    def _create_hatching_pattern(self, gray_image, mask):
+    def _create_hatching_pattern(self, gray_image, strokes):
         """Create pencil hatching pattern"""
         hatched = gray_image.copy()
         h, w = gray_image.shape
+        
+        # Create mask from strokes
+        mask = np.any(strokes > 0, axis=2) if len(strokes.shape) == 3 else strokes > 0
         
         # Create diagonal hatching lines
         for i in range(0, h + w, 4):  # Every 4 pixels
             for j in range(max(0, i - w), min(i + 1, h)):
                 x, y = i - j, j
                 if 0 <= x < w and 0 <= y < h and mask[y, x]:
-                    # Darken the pixel to create hatching effect
-                    hatched[y, x] = max(0, hatched[y, x] - 30)
+                    # Create hatching effect
+                    if (x + y) % 8 < 2:  # Create hatching pattern
+                        hatched[y, x] = max(0, hatched[y, x] - 30)
+        
+        # Add cross-hatching for darker areas
+        for i in range(0, h + w, 6):  # Every 6 pixels, opposite direction
+            for j in range(max(0, i - h), min(i + 1, w)):
+                x, y = j, i - j
+                if 0 <= x < w and 0 <= y < h and mask[y, x] and gray_image[y, x] < 128:
+                    if (x - y) % 8 < 2:  # Cross-hatching pattern
+                        hatched[y, x] = max(0, hatched[y, x] - 20)
         
         return hatched
     
