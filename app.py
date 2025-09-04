@@ -199,6 +199,7 @@ def draw_segment():
         data = request.get_json()
         file_id = data.get('file_id')
         segment_id = data.get('segment_id')
+        brush_type = data.get('brush_type', 'oil')  # Default to oil brush
         
         if not file_id or segment_id is None:
             return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
@@ -208,16 +209,18 @@ def draw_segment():
         brush_strokes = generator.generate_segment_brush_strokes(
             output_dir=app.config['OUTPUT_FOLDER'],
             file_id=file_id,
-            segment_id=segment_id
+            segment_id=segment_id,
+            brush_type=brush_type
         )
         
         return jsonify({
             'success': True,
-            'brush_strokes': brush_strokes
+            'brush_strokes': brush_strokes,
+            'brush_type': brush_type
         })
         
     except Exception as e:
-        print(f"Error in draw_segment: {str(e)}")
+        print(f"Error in draw_segment: {str(e)}")  # Add logging
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':

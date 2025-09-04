@@ -588,7 +588,7 @@ class DrawingEffectGenerator:
                     'pixel_count': int(info['pixel_count']),
                     'average_color': {
                         'r': int(info['avg_color'][0]),
-                        'g': int(info['avg_color'][1]),
+                        'g': int(info['avg_color'][1]), 
                         'b': int(info['avg_color'][2])
                     },
                     'average_color_hex': f"#{int(info['avg_color'][0]):02x}{int(info['avg_color'][1]):02x}{int(info['avg_color'][2]):02x}"
@@ -768,14 +768,15 @@ class DrawingEffectGenerator:
         
         return vis_image
     
-    def generate_segment_brush_strokes(self, output_dir, file_id, segment_id):
+    def generate_segment_brush_strokes(self, output_dir, file_id, segment_id, brush_type='oil'):
         """
-        Generate brush strokes for a specific segment based on its geometry
+        Generate brush strokes for a specific segment based on its geometry and brush type
         
         Args:
             output_dir: Directory containing segment data
             file_id: File identifier
             segment_id: ID of the segment to draw
+            brush_type: Type of brush ('oil', 'watercolor', 'pencil', 'marker', 'chalk')
             
         Returns:
             List of brush stroke data for frontend rendering
@@ -846,20 +847,21 @@ class DrawingEffectGenerator:
         
         print(f"Found {np.sum(mask)} pixels for segment {segment_id}")
         
-        # Analyze segment geometry and generate brush strokes
-        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment)
+        # Analyze segment geometry and generate brush strokes with brush type
+        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type)
         
-        print(f"Generated {len(brush_strokes)} brush strokes for segment {segment_id}")
+        print(f"Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     
-    def _analyze_segment_and_create_strokes(self, mask, segment_info):
+    def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type):
         """
         Analyze segment geometry and create appropriate brush strokes
         
         Args:
             mask: Boolean mask of the segment
             segment_info: Segment information including color
+            brush_type: Type of brush ('oil', 'watercolor', 'pencil', 'marker', 'chalk')
             
         Returns:
             List of brush stroke data
@@ -889,48 +891,381 @@ class DrawingEffectGenerator:
         width = bbox[3] - bbox[1]
         aspect_ratio = width / height if height > 0 else 1
         
-        # Determine brush strategy based on geometry
+        # Determine brush strategy based on geometry and brush type
         brush_strokes = []
         segment_color = f"#{segment_info['average_color']['r']:02x}{segment_info['average_color']['g']:02x}{segment_info['average_color']['b']:02x}"
         
         # Calculate appropriate brush width based on area
-        brush_width = max(2, min(15, int(math.sqrt(area) / 10)))
+        base_stroke_width = max(2, int(math.sqrt(area) / 10))
+        
+        # Special handling for pencil brush type
+        if brush_type == 'pencil':
+            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width)
         
         if area < 100:
             # Very small segments: single dot or short stroke
             brush_strokes.append({
                 'color': segment_color,
-                'width': max(2, brush_width // 2),
+                'width': max(2, base_stroke_width // 2),
                 'points': [
                     {'x': int(centroid[1]), 'y': int(centroid[0])}
-                ]
+                ],
+                'type': brush_type
             })
             
         elif aspect_ratio > 3:
             # Long horizontal segments: horizontal strokes
-            brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, brush_width))
+            brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, base_stroke_width, brush_type))
             
         elif aspect_ratio < 0.33:
             # Long vertical segments: vertical strokes  
-            brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, brush_width))
+            brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, base_stroke_width, brush_type))
             
         elif area < 500:
             # Small to medium segments: radial strokes from center
-            brush_strokes.extend(self._create_radial_strokes(mask, segment_color, brush_width))
+            brush_strokes.extend(self._create_radial_strokes(mask, segment_color, base_stroke_width, brush_type))
             
         else:
             # Large segments: combination of techniques
             if width > height:
-                brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, brush_width))
+                brush_strokes.extend(self._create_horizontal_strokes(mask, segment_color, base_stroke_width, brush_type))
             else:
-                brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, brush_width))
+                brush_strokes.extend(self._create_vertical_strokes(mask, segment_color, base_stroke_width, brush_type))
             
-            # Add some cross-hatching for texture
-            brush_strokes.extend(self._create_cross_hatch_strokes(mask, segment_color, brush_width // 2))
+            # Add cross-hatching for texture
+            brush_strokes.extend(self._create_cross_hatch_strokes(mask, segment_color, base_stroke_width // 2, brush_type))
         
         return brush_strokes
     
-    def _create_horizontal_strokes(self, mask, color, brush_width):
+    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width):
+        """Generate pencil hatching strokes aligned with segment's longest axis"""
+        strokes = []
+        
+        # Get segment properties
+        props = measure.regionprops(segment_mask.astype(int))[0]
+        centroid = props.centroid
+        orientation = props.orientation
+        bbox = props.bbox
+        
+        # Calculate stroke parameters
+        segment_height = bbox[2] - bbox[0]
+        segment_width = bbox[3] - bbox[1]
+        
+        # Determine stroke spacing and count based on segment size (further increased for maximum density)
+        area = props.area
+        if area < 50:
+            stroke_spacing = max(1, int(base_stroke_width * 0.3))  # Even closer spacing
+            num_strokes = max(12, int(area / 3))  # More strokes
+        elif area < 200:
+            stroke_spacing = max(1, int(base_stroke_width * 0.4))
+            num_strokes = max(20, int(area / 6))
+        else:
+            stroke_spacing = max(1, int(base_stroke_width * 0.5))
+            num_strokes = max(35, int(area / 8))
+        
+        # Limit maximum number of strokes (further increased for maximum coverage)
+        num_strokes = min(num_strokes, 70)  # Increased limit for maximum density
+        
+        # Make pencil color slightly darker for visibility (only 5% darker)
+        pencil_color = [
+            max(0, int(float(avg_color['r']) * 0.95)),
+            max(0, int(float(avg_color['g']) * 0.95)),
+            max(0, int(float(avg_color['b']) * 0.95))
+        ]  # Only slightly darker for visibility
+        
+        # Calculate appropriate brush width based on area
+        stroke_width = max(2, int(base_stroke_width * 1.0))  # Increased thickness
+        
+        # Generate primary hatching strokes along the major axis
+        for i in range(num_strokes):
+            # Add angle variation (±10 degrees)
+            angle_variation = (np.random.random() - 0.5) * 20 * np.pi / 180
+            stroke_angle = orientation + angle_variation
+            
+            dx = np.cos(stroke_angle)
+            dy = np.sin(stroke_angle)
+            
+            # Find a starting point within the segment
+            attempts = 0
+            start_point = None
+            
+            while attempts < 10 and start_point is None:
+                # Try different starting positions
+                if segment_width > segment_height:
+                    # For wide segments, start from left/right edges
+                    start_y = bbox[0] + np.random.random() * segment_height
+                    start_x = bbox[1] + (i / num_strokes) * segment_width + np.random.random() * stroke_spacing - stroke_spacing/2
+                else:
+                    # For tall segments, start from top/bottom edges
+                    start_x = bbox[1] + np.random.random() * segment_width
+                    start_y = bbox[0] + (i / num_strokes) * segment_height + np.random.random() * stroke_spacing - stroke_spacing/2
+                
+                # Ensure starting point is within bounds and in segment
+                start_x = max(bbox[1], min(bbox[3]-1, start_x))
+                start_y = max(bbox[0], min(bbox[2]-1, start_y))
+                
+                if (0 <= int(start_y) < segment_mask.shape[0] and 
+                    0 <= int(start_x) < segment_mask.shape[1] and
+                    segment_mask[int(start_y), int(start_x)]):
+                    start_point = (start_x, start_y)
+                
+                attempts += 1
+            
+            if start_point is None:
+                continue
+            
+            # Generate stroke points (2-5 points as requested)
+            num_points = np.random.randint(2, 6)  # 2 to 5 points
+            stroke_points = []
+            
+            current_x, current_y = start_point
+            
+            # Calculate step size to create stroke of appropriate length
+            max_stroke_length = min(segment_width, segment_height) * 0.8  # Increased length
+            step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
+            
+            for point_idx in range(num_points):
+                # Add the current point if it's within segment boundaries
+                if (0 <= int(current_y) < segment_mask.shape[0] and 
+                    0 <= int(current_x) < segment_mask.shape[1] and
+                    segment_mask[int(current_y), int(current_x)]):
+                    stroke_points.append({'x': current_x, 'y': current_y})
+                
+                # Move to next point along the stroke direction
+                if point_idx < num_points - 1:
+                    current_x += dx * step_size
+                    current_y += dy * step_size
+                    
+                    # Ensure we don't go outside the bounding box
+                    if (current_x < bbox[1] or current_x >= bbox[3] or
+                        current_y < bbox[0] or current_y >= bbox[2]):
+                        break
+                        
+                    if (int(current_y) >= segment_mask.shape[0] or 
+                        int(current_x) >= segment_mask.shape[1] or
+                        not segment_mask[int(current_y), int(current_x)]):
+                        break
+            
+            # Only add stroke if we have at least 2 points
+            if len(stroke_points) >= 2:
+                strokes.append({
+                    'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                    'width': stroke_width,
+                    'points': stroke_points,
+                    'type': 'pencil'
+                })
+        
+        # Add multiple layers of fine detail strokes for maximum pencil density and realism
+        if area > 50:
+            # Layer 1: Fine detail strokes (very thin)
+            fine_stroke_count = min(num_strokes, 25)
+            
+            for i in range(fine_stroke_count):
+                # Fine stroke angle with more variation
+                angle_variation = (np.random.random() - 0.5) * 40 * np.pi / 180
+                stroke_angle = orientation + angle_variation
+                
+                dx = np.cos(stroke_angle)
+                dy = np.sin(stroke_angle)
+                
+                # Random starting points for fine details
+                attempts = 0
+                start_point = None
+                
+                while attempts < 6 and start_point is None:
+                    start_x = bbox[1] + np.random.random() * segment_width
+                    start_y = bbox[0] + np.random.random() * segment_height
+                    
+                    if (0 <= int(start_y) < segment_mask.shape[0] and 
+                        0 <= int(start_x) < segment_mask.shape[1] and
+                        segment_mask[int(start_y), int(start_x)]):
+                        start_point = (start_x, start_y)
+                    
+                    attempts += 1
+                
+                if start_point is None:
+                    continue
+                
+                # Generate very short fine strokes (2-3 points)
+                num_points = np.random.randint(2, 4)
+                stroke_points = []
+                current_x, current_y = start_point
+                
+                # Very short fine strokes
+                fine_stroke_length = min(segment_width, segment_height) * 0.2
+                step_size = fine_stroke_length / (num_points - 1) if num_points > 1 else 0
+                
+                for point_idx in range(num_points):
+                    if (0 <= int(current_y) < segment_mask.shape[0] and 
+                        0 <= int(current_x) < segment_mask.shape[1] and
+                        segment_mask[int(current_y), int(current_x)]):
+                        stroke_points.append({'x': current_x, 'y': current_y})
+                    
+                    if point_idx < num_points - 1:
+                        current_x += dx * step_size
+                        current_y += dy * step_size
+                        
+                        if (current_x < bbox[1] or current_x >= bbox[3] or
+                            current_y < bbox[0] or current_y >= bbox[2]):
+                            break
+                        
+                        if (int(current_y) >= segment_mask.shape[0] or 
+                            int(current_x) >= segment_mask.shape[1] or
+                            not segment_mask[int(current_y), int(current_x)]):
+                            break
+                
+                if len(stroke_points) >= 2:
+                    fine_stroke_width = max(1, int(base_stroke_width * 0.3))  # Very thin strokes
+                    strokes.append({
+                        'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                        'width': fine_stroke_width,
+                        'points': stroke_points,
+                        'type': 'pencil'
+                    })
+            
+            # Layer 2: Micro detail strokes (extremely thin) for large segments
+            if area > 200:
+                micro_stroke_count = min(int(area / 15), 30)
+                
+                for i in range(micro_stroke_count):
+                    # Micro stroke with high angle variation
+                    angle_variation = (np.random.random() - 0.5) * 60 * np.pi / 180
+                    stroke_angle = orientation + angle_variation
+                    
+                    dx = np.cos(stroke_angle)
+                    dy = np.sin(stroke_angle)
+                    
+                    # Random micro positions
+                    attempts = 0
+                    start_point = None
+                    
+                    while attempts < 4 and start_point is None:
+                        start_x = bbox[1] + np.random.random() * segment_width
+                        start_y = bbox[0] + np.random.random() * segment_height
+                        
+                        if (0 <= int(start_y) < segment_mask.shape[0] and 
+                            0 <= int(start_x) < segment_mask.shape[1] and
+                            segment_mask[int(start_y), int(start_x)]):
+                            start_point = (start_x, start_y)
+                        
+                        attempts += 1
+                    
+                    if start_point is None:
+                        continue
+                    
+                    # Generate tiny micro strokes (2 points only)
+                    num_points = 2
+                    stroke_points = []
+                    current_x, current_y = start_point
+                    
+                    # Tiny micro strokes
+                    micro_stroke_length = min(segment_width, segment_height) * 0.1
+                    step_size = micro_stroke_length
+                    
+                    # First point
+                    stroke_points.append({'x': current_x, 'y': current_y})
+                    
+                    # Second point
+                    current_x += dx * step_size
+                    current_y += dy * step_size
+                    
+                    if (0 <= int(current_y) < segment_mask.shape[0] and 
+                        0 <= int(current_x) < segment_mask.shape[1] and
+                        segment_mask[int(current_y), int(current_x)] and
+                        current_x >= bbox[1] and current_x < bbox[3] and
+                        current_y >= bbox[0] and current_y < bbox[2]):
+                        stroke_points.append({'x': current_x, 'y': current_y})
+                    
+                    if len(stroke_points) >= 2:
+                        micro_stroke_width = 1  # Minimal thickness
+                        strokes.append({
+                            'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                            'width': micro_stroke_width,
+                            'points': stroke_points,
+                            'type': 'pencil'
+                        })
+        
+        # Add cross-hatching for larger segments (more visible)
+        if area > 60 and len(strokes) > 0:  # Even lower threshold for maximum cross-hatching
+            cross_hatch_count = min(len(strokes) // 1.2, 30)  # Even more cross-hatching strokes
+            
+            # Add multiple layers of cross-hatching at different angles
+            cross_angles = [
+                np.pi/2,      # Perpendicular (90°)
+                np.pi/3,      # 60 degrees
+                2*np.pi/3,    # 120 degrees
+                np.pi/4,      # 45 degrees
+                3*np.pi/4     # 135 degrees
+            ]
+            
+            for angle_offset in cross_angles:
+                layer_count = max(1, int(cross_hatch_count / len(cross_angles)))
+                
+                for i in range(layer_count):
+                    # Cross-hatch angle with variation
+                    cross_angle = orientation + angle_offset + (np.random.random() - 0.5) * 10 * np.pi / 180
+                    
+                    dx = np.cos(cross_angle)
+                    dy = np.sin(cross_angle)
+                    
+                    # Find starting point for cross-hatch
+                    attempts = 0
+                    start_point = None
+                    
+                    while attempts < 8 and start_point is None:
+                        start_x = bbox[1] + np.random.random() * segment_width
+                        start_y = bbox[0] + np.random.random() * segment_height
+                        
+                        if (0 <= int(start_y) < segment_mask.shape[0] and 
+                            0 <= int(start_x) < segment_mask.shape[1] and
+                            segment_mask[int(start_y), int(start_x)]):
+                            start_point = (start_x, start_y)
+                        
+                        attempts += 1
+                    
+                    if start_point is None:
+                        continue
+                    
+                    # Generate cross-hatch stroke (2-4 points for cross-hatching)
+                    num_points = np.random.randint(2, 5)
+                    stroke_points = []
+                    current_x, current_y = start_point
+                    
+                    cross_stroke_length = min(segment_width, segment_height) * 0.6  # Longer cross-hatching
+                    step_size = cross_stroke_length / (num_points - 1) if num_points > 1 else 0
+                    
+                    for point_idx in range(num_points):
+                        if (0 <= int(current_y) < segment_mask.shape[0] and 
+                            0 <= int(current_x) < segment_mask.shape[1] and
+                            segment_mask[int(current_y), int(current_x)]):
+                            stroke_points.append({'x': current_x, 'y': current_y})
+                        
+                        if point_idx < num_points - 1:
+                            current_x += dx * step_size
+                            current_y += dy * step_size
+                            
+                            # Check boundaries
+                            if (current_x < bbox[1] or current_x >= bbox[3] or
+                                current_y < bbox[0] or current_y >= bbox[2]):
+                                break
+                            
+                            if (int(current_y) >= segment_mask.shape[0] or 
+                                int(current_x) >= segment_mask.shape[1] or
+                                not segment_mask[int(current_y), int(current_x)]):
+                                break
+                    
+                    if len(stroke_points) >= 2:
+                        stroke_width = max(1, int(base_stroke_width * 0.7))  # Cross-hatch thickness
+                        strokes.append({
+                            'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                            'width': stroke_width,
+                            'points': stroke_points,
+                            'type': 'pencil'
+                        })
+        
+        return strokes
+    
+    def _create_horizontal_strokes(self, mask, color, base_stroke_width, brush_type):
         """Create horizontal brush strokes across the segment"""
         strokes = []
         h, w = mask.shape
@@ -939,7 +1274,7 @@ class DrawingEffectGenerator:
         y_coords = np.where(np.any(mask, axis=1))[0]
         
         # Create strokes every few pixels vertically
-        step = max(2, brush_width // 2)
+        step = max(2, base_stroke_width // 2)
         for y in y_coords[::step]:
             # Find x range for this y coordinate
             x_coords = np.where(mask[y, :])[0]
@@ -956,13 +1291,14 @@ class DrawingEffectGenerator:
                 if len(points) > 1:
                     strokes.append({
                         'color': color,
-                        'width': brush_width,
-                        'points': points
+                        'width': base_stroke_width,
+                        'points': points,
+                        'type': brush_type
                     })
         
         return strokes
     
-    def _create_vertical_strokes(self, mask, color, brush_width):
+    def _create_vertical_strokes(self, mask, color, base_stroke_width, brush_type):
         """Create vertical brush strokes across the segment"""
         strokes = []
         h, w = mask.shape
@@ -971,7 +1307,7 @@ class DrawingEffectGenerator:
         x_coords = np.where(np.any(mask, axis=0))[0]
         
         # Create strokes every few pixels horizontally
-        step = max(2, brush_width // 2)
+        step = max(2, base_stroke_width // 2)
         for x in x_coords[::step]:
             # Find y range for this x coordinate
             y_coords = np.where(mask[:, x])[0]
@@ -988,13 +1324,14 @@ class DrawingEffectGenerator:
                 if len(points) > 1:
                     strokes.append({
                         'color': color,
-                        'width': brush_width,
-                        'points': points
+                        'width': base_stroke_width,
+                        'points': points,
+                        'type': brush_type
                     })
         
         return strokes
     
-    def _create_radial_strokes(self, mask, color, brush_width):
+    def _create_radial_strokes(self, mask, color, base_stroke_width, brush_type):
         """Create radial brush strokes from the center of the segment"""
         from skimage import measure
         
@@ -1031,19 +1368,20 @@ class DrawingEffectGenerator:
             if len(points) > 1:
                 strokes.append({
                     'color': color,
-                    'width': brush_width,
-                    'points': points
+                    'width': base_stroke_width,
+                    'points': points,
+                    'type': brush_type
                 })
         
         return strokes
     
-    def _create_cross_hatch_strokes(self, mask, color, brush_width):
+    def _create_cross_hatch_strokes(self, mask, color, base_stroke_width, brush_type):
         """Create cross-hatching strokes for texture"""
         strokes = []
         h, w = mask.shape
         
         # Diagonal strokes (45 degrees)
-        for offset in range(-max(h, w), max(h, w), brush_width * 3):
+        for offset in range(-max(h, w), max(h, w), base_stroke_width * 3):
             points = []
             for x in range(w):
                 y = x + offset
@@ -1053,8 +1391,9 @@ class DrawingEffectGenerator:
             if len(points) > 2:
                 strokes.append({
                     'color': color,
-                    'width': brush_width,
-                    'points': points
+                    'width': base_stroke_width,
+                    'points': points,
+                    'type': brush_type
                 })
         
         return strokes
