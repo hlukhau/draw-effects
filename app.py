@@ -64,6 +64,7 @@ def process_image():
     file_id = data.get('file_id')
     style = data.get('style', 'oil')
     detail_level = data.get('detail_level', 3)
+    video_duration = data.get('video_duration', 10)
     
     if not file_id:
         return jsonify({'error': 'No file ID provided'}), 400
@@ -88,13 +89,13 @@ def process_image():
     # Start processing in background thread
     thread = threading.Thread(
         target=process_image_background,
-        args=(file_id, uploaded_file, style, detail_level)
+        args=(file_id, uploaded_file, style, detail_level, video_duration)
     )
     thread.start()
     
     return jsonify({'success': True, 'file_id': file_id})
 
-def process_image_background(file_id, filename, style, detail_level):
+def process_image_background(file_id, filename, style, detail_level, video_duration):
     try:
         input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         output_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_drawing.mp4")
@@ -116,6 +117,7 @@ def process_image_background(file_id, filename, style, detail_level):
             output_path, 
             style=style, 
             detail_level=detail_level,
+            video_duration=video_duration,
             progress_callback=update_status
         )
         
@@ -159,4 +161,4 @@ def preview_video(file_id):
         return jsonify({'error': 'File not found'}), 404
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5002)
