@@ -199,7 +199,8 @@ def draw_segment():
         data = request.get_json()
         file_id = data.get('file_id')
         segment_id = data.get('segment_id')
-        brush_type = data.get('brush_type', 'oil')  # Default to oil brush
+        brush_type = data.get('brush_type', 'pencil')  # Default to pencil brush
+        stroke_density = data.get('stroke_density', 1.0)  # Default density
         
         if not file_id or segment_id is None:
             return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
@@ -210,7 +211,8 @@ def draw_segment():
             output_dir=app.config['OUTPUT_FOLDER'],
             file_id=file_id,
             segment_id=segment_id,
-            brush_type=brush_type
+            brush_type=brush_type,
+            stroke_density=stroke_density
         )
         
         return jsonify({
