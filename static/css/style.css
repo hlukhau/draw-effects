@@ -183,3 +183,108 @@ footer {
         opacity: 1;
     }
 }
+
+/* Collapsible tables styles */
+.btn-link:hover {
+    text-decoration: none !important;
+}
+
+.card-header .btn-link {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.card-header .btn-link:focus {
+    box-shadow: none;
+}
+
+/* Smooth chevron rotation */
+#boundaryChevron, #segmentationChevron {
+    transition: transform 0.3s ease;
+}
+
+.fa-chevron-up {
+    transform: rotate(180deg);
+}
+
+.fa-chevron-down {
+    transform: rotate(0deg);
+}
+
+/* Animation section styles */
+#animationSection {
+    border-left: 4px solid #007bff;
+}
+
+#animationSection .card-header {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+}
+
+.canvas-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.canvas-container canvas {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+/* Animation controls styling */
+#animationSection .row .card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#animationSection .row .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+#animationSection .btn {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+#animationSection .btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Video preview area styling */
+#videoPreviewArea .card {
+    border: 2px dashed #dee2e6;
+    background-color: #f8f9fa;
+}
+
+#videoPreviewArea video {
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Drawing settings card */
+.canvas-container .card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.canvas-container .form-range {
+    accent-color: #007bff;
+}
+
+.canvas-container .form-control {
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.canvas-container .form-control:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}

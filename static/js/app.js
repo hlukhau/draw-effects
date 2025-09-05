@@ -45,6 +45,8 @@ const brushTypes = {
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
     updateStyleDescription();
+    initializeCollapsibleTables();
+    initializeAnimationControls();
 });
 
 function initializeEventListeners() {
@@ -99,6 +101,33 @@ function initializeEventListeners() {
     strokeDensity.addEventListener('input', function() {
         document.getElementById('densityValue').textContent = parseFloat(this.value).toFixed(1);
     });
+
+    // Boundary sensitivity slider
+    const boundarySensitivity = document.getElementById('boundarySensitivity');
+    if (boundarySensitivity) {
+        boundarySensitivity.addEventListener('input', function() {
+            document.getElementById('sensitivityValue').textContent = this.value;
+        });
+    }
+    
+    // Boundary fragmentation slider
+    const boundaryFragmentation = document.getElementById('boundaryFragmentation');
+    if (boundaryFragmentation) {
+        boundaryFragmentation.addEventListener('input', function() {
+            const value = parseInt(this.value);
+            document.getElementById('fragmentationValue').textContent = value;
+            
+            // Update description based on value
+            const description = value === 1 ? 
+                'No fragmentation - boundaries remain whole' :
+                `Split each boundary into ${value} fragments`;
+            
+            const helpText = boundaryFragmentation.parentElement.querySelector('.form-text');
+            if (helpText) {
+                helpText.innerHTML = `${description} (1=no split, 6=maximum fragments)`;
+            }
+        });
+    }
 }
 
 function handleDragOver(e) {
@@ -167,6 +196,7 @@ function showImagePreview(src, fileName) {
     
     // Enable process buttons
     document.getElementById('segmentBtn').disabled = false;
+    document.getElementById('boundariesBtn').disabled = false;
     currentFileId = null;
     
     // Clean up existing video resources when loading new image
@@ -190,9 +220,11 @@ function showImagePreview(src, fileName) {
 function clearImage() {
     document.getElementById('imagePreview').style.display = 'none';
     document.getElementById('segmentBtn').disabled = true;
+    document.getElementById('boundariesBtn').disabled = true;
     currentFileId = null;
     hideResults();
     hideSegmentationResults();
+    hideBoundaryResults();
 }
 
 function uploadFile(file) {
@@ -210,6 +242,7 @@ function uploadFile(file) {
         if (data.success) {
             currentFileId = data.file_id;
             document.getElementById('segmentBtn').disabled = false;
+            document.getElementById('boundariesBtn').disabled = false;
             showAlert('Image uploaded successfully!', 'success');
         } else {
             showAlert(data.error || 'Upload failed', 'danger');
@@ -387,27 +420,76 @@ function updateProcessingStatus(data) {
 }
 
 function showResults(fileId) {
-    const resultsSection = document.getElementById('resultsSection');
-    const resultVideo = document.getElementById('resultVideo');
-    const downloadBtn = document.getElementById('downloadBtn');
-
-    // Set video source
-    resultVideo.src = `/preview/${fileId}`;
+    // Try to show results in Animation section first
+    const animationVideoArea = document.getElementById('videoPreviewArea');
+    const animationVideo = document.getElementById('resultVideo');
+    const downloadVideoBtn = document.getElementById('downloadVideoBtn');
     
-    // Set download link
-    downloadBtn.onclick = () => {
-        window.open(`/download/${fileId}`, '_blank');
-    };
+    if (animationVideoArea && animationVideo) {
+        // Show video in Animation section
+        animationVideoArea.style.display = 'block';
+        animationVideo.src = `/preview/${fileId}`;
+        
+        // Setup download button
+        if (downloadVideoBtn) {
+            downloadVideoBtn.style.display = 'inline-block';
+            downloadVideoBtn.onclick = () => {
+                window.open(`/download/${fileId}`, '_blank');
+            };
+        }
+        
+        // Show animation section
+        showAnimationSection();
+    } else {
+        // Fallback to legacy results section if it exists
+        const resultsSection = document.getElementById('resultsSection');
+        const resultVideo = document.getElementById('resultVideo');
+        const downloadBtn = document.getElementById('downloadBtn');
 
-    // Show results
-    resultsSection.style.display = 'block';
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
+        if (resultsSection && resultVideo) {
+            // Set video source
+            resultVideo.src = `/preview/${fileId}`;
+            
+            // Set download link
+            if (downloadBtn) {
+                downloadBtn.onclick = () => {
+                    window.open(`/download/${fileId}`, '_blank');
+                };
+            }
+
+            // Show results
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    }
 
     showAlert('Drawing video created successfully!', 'success');
 }
 
 function hideResults() {
-    document.getElementById('resultsSection').style.display = 'none';
+    // Hide legacy results section if it exists
+    const resultsSection = document.getElementById('resultsSection');
+    if (resultsSection) {
+        resultsSection.style.display = 'none';
+    }
+    
+    // Hide animation section
+    const animationSection = document.getElementById('animationSection');
+    if (animationSection) {
+        animationSection.style.display = 'none';
+    }
+    
+    // Hide segmentation results
+    const segmentationResults = document.getElementById('segmentationResults');
+    if (segmentationResults) {
+        segmentationResults.style.display = 'none';
+    }
+    
+    // Hide boundary results
+    const boundaryResults = document.getElementById('boundaryResults');
+    if (boundaryResults) {
+        boundaryResults.style.display = 'none';
+    }
 }
 
 function showSegmentationResults(fileId) {
@@ -543,6 +625,24 @@ function showSegmentationResults(fileId) {
                     // Store segment data for canvas interaction
                     canvasData.segmentInfo = segmentData;
                     
+                    // CRITICAL: Clear any stale segment references after re-segmentation
+                    canvasData.selectedSegmentId = null;
+                    
+                    
+                    // Debug: Log segment ID range to verify data freshness
+                    if (segmentData.segments && segmentData.segments.length > 0) {
+                        const segmentIds = segmentData.segments.map(s => s.id);
+                        const minId = Math.min(...segmentIds);
+                        const maxId = Math.max(...segmentIds);
+                        console.log(`✅ Updated segment data: ${segmentData.segments.length} segments, ID range: ${minId}-${maxId}`);
+                        
+                        // Verify no duplicate IDs
+                        const uniqueIds = new Set(segmentIds);
+                        if (uniqueIds.size !== segmentIds.length) {
+                            console.warn(`⚠️ Warning: Found duplicate segment IDs! Unique: ${uniqueIds.size}, Total: ${segmentIds.length}`);
+                        }
+                    }
+                    
                     const infoCol = document.createElement('div');
                     infoCol.className = 'col-12 mt-3';
                     
@@ -609,6 +709,9 @@ function showSegmentationResults(fileId) {
                                     </button>
                                     <button id="drawSmallBtn" class="btn btn-info btn-sm mr-2">
                                         <i class="fas fa-brush"></i> Small Fragments
+                                    </button>
+                                    <button id="highlightBoundariesBtn" class="btn btn-outline-primary btn-sm mr-2">
+                                        <i class="fas fa-highlighter"></i> Highlight Boundaries
                                     </button>
                                     <button id="stopDrawingBtn" class="btn btn-danger btn-sm mr-2" style="display: none;">
                                         <i class="fas fa-stop"></i> Stop
@@ -696,15 +799,17 @@ function showSegmentationResults(fileId) {
                         `;
                     }
                     
-                    // Always append the canvas container (either preserved or new)
-                    infoBody.appendChild(canvasContainerToUse);
+                    // Only create and initialize canvas if it doesn't exist yet (first time)
+                    const existingCanvas = document.getElementById('drawingCanvas');
                     
-                    // Initialize interactive canvas AFTER creating the elements
-                    // Only initialize if not preserving existing canvas state
-                    if (!canvasData.preserveCanvasState) {
+                    if (!existingCanvas) {
+                        // First time - create and initialize canvas
+                        console.log('First time loading - creating canvas');
+                        createCanvasInAnimationSection(canvasContainerToUse);
                         setTimeout(() => initializeInteractiveCanvas(fileId), 100);
                     } else {
-                        // Update segment info but preserve canvas
+                        // Re-segmentation - don't touch canvas at all, just update button handlers
+                        console.log('Re-segmentation - canvas already exists, not touching it');
                         setTimeout(() => updateSegmentInfoOnly(fileId), 100);
                     }
                     
@@ -882,6 +987,7 @@ function initializeInteractiveCanvas(fileId) {
     document.getElementById('drawLargeBtn').addEventListener('click', drawLargeFragments);
     document.getElementById('drawMediumBtn').addEventListener('click', drawMediumFragments);
     document.getElementById('drawSmallBtn').addEventListener('click', drawSmallFragments);
+    document.getElementById('highlightBoundariesBtn').addEventListener('click', highlightContrastBoundaries);
     document.getElementById('stopDrawingBtn').addEventListener('click', stopDrawingAll);
     document.getElementById('clearCanvasBtn').addEventListener('click', clearCanvas);
     document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
@@ -914,23 +1020,37 @@ function initializeInteractiveCanvas(fileId) {
     }
 }
 
-// New function to update only segment info without reinitializing canvas
+// New function to update only segment info without touching canvas at all
 function updateSegmentInfoOnly(fileId) {
-    // Update segment info for new fragmentation while preserving canvas drawing
-    const canvas = document.getElementById('drawingCanvas');
-    const overlay = document.getElementById('segmentOverlay');
+    console.log('Updating segment info only - canvas will not be touched');
     
-    if (!canvas) {
-        console.warn('Canvas not found for segment info update');
-        return;
-    }
+    // First, fetch and update the segment data for drawing functions
+    fetch(`/status/${fileId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'completed' && data.mode === 'segmentation') {
+            // Update segment data for drawing functions
+            const jsonFile = data.output_files.find(f => f.endsWith('.json'));
+            if (jsonFile) {
+                fetch(`/outputs/${jsonFile}`)
+                .then(response => response.json())
+                .then(segmentData => {
+                    // Update canvasData with new segment information
+                    canvasData.segmentInfo = segmentData;
+                    console.log('Updated segment data:', segmentData.segments.length, 'segments');
+                })
+                .catch(error => {
+                    console.error('Error loading segment data:', error);
+                });
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching status for segment update:', error);
+    });
     
-    console.log('Updating segment info while preserving canvas state');
-    console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
-    
-    // Store current canvas state before any updates
-    const ctx = canvas.getContext('2d');
-    const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    // Update button event handlers
+    // Canvas remains completely untouched
     
     // Re-initialize button event listeners if needed
     const drawAllBtn = document.getElementById('drawAllBtn');
@@ -957,6 +1077,13 @@ function updateSegmentInfoOnly(fileId) {
         drawSmallBtn.replaceWith(drawSmallBtn.cloneNode(true));
         document.getElementById('drawSmallBtn').addEventListener('click', drawSmallFragments);
     }
+    
+    const highlightBtn = document.getElementById('highlightBoundariesBtn');
+    if (highlightBtn) {
+        highlightBtn.replaceWith(highlightBtn.cloneNode(true));
+        document.getElementById('highlightBoundariesBtn').addEventListener('click', highlightContrastBoundaries);
+    }
+    
     if (stopBtn) {
         stopBtn.replaceWith(stopBtn.cloneNode(true));
         document.getElementById('stopDrawingBtn').addEventListener('click', stopDrawingAll);
@@ -1001,22 +1128,7 @@ function updateSegmentInfoOnly(fileId) {
         newBackgroundSelector.value = canvasData.backgroundColor;
     }
     
-    // Restore the exact canvas state after any DOM manipulations
-    setTimeout(() => {
-        const finalCanvas = document.getElementById('drawingCanvas');
-        if (finalCanvas && currentImageData) {
-            const finalCtx = finalCanvas.getContext('2d');
-            // Ensure canvas dimensions haven't changed
-            if (finalCanvas.width !== currentImageData.width || finalCanvas.height !== currentImageData.height) {
-                finalCanvas.width = currentImageData.width;
-                finalCanvas.height = currentImageData.height;
-            }
-            // Restore the exact pixel data
-            finalCtx.putImageData(currentImageData, 0, 0);
-            console.log('Canvas state fully restored after segment update');
-        }
-    }, 50);
-    
+    console.log('Segment info updated - canvas was not touched');
     showAlert('Segmentation updated while preserving your drawing!', 'success');
 }
 
@@ -1334,7 +1446,7 @@ function drawSelectedSegment() {
     });
 }
 
-function applyBrushStrokesFast(brushStrokes) {
+function applyBrushStrokesFast(brushStrokes, segmentId) {
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d');
     
@@ -1381,13 +1493,322 @@ function applyBrushStrokesFast(brushStrokes) {
     });
 }
 
+function drawTaperedStrokes(highlightStrokes) {
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    if (!highlightStrokes || highlightStrokes.length === 0) {
+        console.warn('No highlight strokes to draw');
+        return;
+    }
+    
+    console.log(`Drawing ${highlightStrokes.length} tapered strokes`);
+    
+    highlightStrokes.forEach((stroke, index) => {
+        if (!stroke.points || stroke.points.length < 2) {
+            console.warn(`Stroke ${index} has insufficient points:`, stroke.points?.length || 0);
+            return;
+        }
+        
+        // Set stroke color
+        ctx.strokeStyle = stroke.color;
+        ctx.fillStyle = stroke.color;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.globalAlpha = 0.8;
+        
+        // Draw tapered stroke using variable line width
+        const points = stroke.points;
+        
+        // Debug: log stroke information
+        console.log(`Drawing stroke with ${points.length} points, base width: ${stroke.width}`);
+        if (points.length > 0) {
+            console.log(`First point thickness: ${points[0].thickness}, Last point thickness: ${points[points.length-1].thickness}`);
+        }
+        
+        for (let i = 0; i < points.length - 1; i++) {
+            const currentPoint = points[i];
+            const nextPoint = points[i + 1];
+            
+            // Use the thickness from the current point (already calculated with tapering)
+            const thickness = currentPoint.thickness || stroke.width || 2;
+            
+            // Debug: log thickness for first few points
+            if (i < 3) {
+                console.log(`Point ${i}: thickness = ${thickness}`);
+            }
+            
+            ctx.lineWidth = Math.max(1, thickness); // Ensure minimum thickness of 1
+            ctx.beginPath();
+            ctx.moveTo(currentPoint.x, currentPoint.y);
+            ctx.lineTo(nextPoint.x, nextPoint.y);
+            ctx.stroke();
+        }
+        
+        // Alternative method: Draw as filled polygon for smoother tapering
+        if (stroke.use_polygon && points.length > 2) {
+            ctx.beginPath();
+            
+            // Create outline points for the tapered stroke
+            const outlinePoints = [];
+            
+            for (let i = 0; i < points.length; i++) {
+                const point = points[i];
+                const thickness = point.thickness || stroke.width || 2;
+                const halfThickness = thickness / 2;
+                
+                // Calculate perpendicular direction
+                let perpX = 0, perpY = 0;
+                
+                if (i === 0 && points.length > 1) {
+                    // First point - use direction to next point
+                    const dx = points[1].x - point.x;
+                    const dy = points[1].y - point.y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    if (length > 0) {
+                        perpX = -dy / length;
+                        perpY = dx / length;
+                    }
+                } else if (i === points.length - 1) {
+                    // Last point - use direction from previous point
+                    const dx = point.x - points[i - 1].x;
+                    const dy = point.y - points[i - 1].y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    if (length > 0) {
+                        perpX = -dy / length;
+                        perpY = dx / length;
+                    }
+                } else {
+                    // Middle point - average of directions
+                    const dx1 = point.x - points[i - 1].x;
+                    const dy1 = point.y - points[i - 1].y;
+                    const dx2 = points[i + 1].x - point.x;
+                    const dy2 = points[i + 1].y - point.y;
+                    
+                    const length1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+                    const length2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                    
+                    if (length1 > 0 && length2 > 0) {
+                        const perp1X = -dy1 / length1;
+                        const perp1Y = dx1 / length1;
+                        const perp2X = -dy2 / length2;
+                        const perp2Y = dx2 / length2;
+                        
+                        perpX = (perp1X + perp2X) / 2;
+                        perpY = (perp1Y + perp2Y) / 2;
+                        
+                        const perpLength = Math.sqrt(perpX * perpX + perpY * perpY);
+                        if (perpLength > 0) {
+                            perpX /= perpLength;
+                            perpY /= perpLength;
+                        }
+                    }
+                }
+                
+                // Add points on both sides
+                outlinePoints.push({
+                    x: point.x + perpX * halfThickness,
+                    y: point.y + perpY * halfThickness
+                });
+            }
+            
+            // Add points on the other side (in reverse order)
+            for (let i = points.length - 1; i >= 0; i--) {
+                const point = points[i];
+                const thickness = point.thickness || stroke.width || 2;
+                const halfThickness = thickness / 2;
+                
+                // Calculate perpendicular direction (same as above)
+                let perpX = 0, perpY = 0;
+                
+                if (i === 0 && points.length > 1) {
+                    const dx = points[1].x - point.x;
+                    const dy = points[1].y - point.y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    if (length > 0) {
+                        perpX = -dy / length;
+                        perpY = dx / length;
+                    }
+                } else if (i === points.length - 1) {
+                    const dx = point.x - points[i - 1].x;
+                    const dy = point.y - points[i - 1].y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    if (length > 0) {
+                        perpX = -dy / length;
+                        perpY = dx / length;
+                    }
+                } else {
+                    const dx1 = point.x - points[i - 1].x;
+                    const dy1 = point.y - points[i - 1].y;
+                    const dx2 = points[i + 1].x - point.x;
+                    const dy2 = points[i + 1].y - point.y;
+                    
+                    const length1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+                    const length2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+                    
+                    if (length1 > 0 && length2 > 0) {
+                        const perp1X = -dy1 / length1;
+                        const perp1Y = dx1 / length1;
+                        const perp2X = -dy2 / length2;
+                        const perp2Y = dx2 / length2;
+                        
+                        perpX = (perp1X + perp2X) / 2;
+                        perpY = (perp1Y + perp2Y) / 2;
+                        
+                        const perpLength = Math.sqrt(perpX * perpX + perpY * perpY);
+                        if (perpLength > 0) {
+                            perpX /= perpLength;
+                            perpY /= perpLength;
+                        }
+                    }
+                }
+                
+                outlinePoints.push({
+                    x: point.x - perpX * halfThickness,
+                    y: point.y - perpY * halfThickness
+                });
+            }
+            
+            // Draw the filled polygon
+            if (outlinePoints.length > 0) {
+                ctx.moveTo(outlinePoints[0].x, outlinePoints[0].y);
+                for (let i = 1; i < outlinePoints.length; i++) {
+                    ctx.lineTo(outlinePoints[i].x, outlinePoints[i].y);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+    });
+    
+    // Reset context
+    ctx.globalAlpha = 1.0;
+    ctx.globalCompositeOperation = 'source-over';
+    
+    console.log('Finished drawing tapered strokes');
+}
+
 function drawAllSegments() {
-    if (!canvasData.segmentInfo || !currentFileId) {
-        showAlert('No segment data available', 'danger');
+    console.log('🎨 drawAllSegments called');
+    
+    // First, try using existing segment data if available
+    if (canvasData.segmentInfo && canvasData.segmentInfo.segments && canvasData.segmentInfo.segments.length > 0) {
+        console.log('✅ Using existing segment data');
+        proceedWithDrawing();
+        return;
+    }
+    
+    // If no existing data, force refresh
+    if (!currentFileId) {
+        showAlert('No file selected', 'danger');
+        return;
+    }
+    
+    console.log('🔄 No existing segment data, forcing fresh reload...');
+    
+    // Find the latest JSON file for current file_id
+    fetch(`/segmentation/${currentFileId}`)
+    .then(response => {
+        console.log('📡 Segmentation API response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('📊 Segmentation data:', data);
+        
+        if (data.status !== 'completed') {
+            showAlert('Segmentation data not available', 'danger');
+            throw new Error('Segmentation not completed');
+        }
+        
+        // Find the JSON file
+        const jsonFile = data.output_files.find(f => f.endsWith('.json'));
+        if (!jsonFile) {
+            showAlert('Segment data file not found', 'danger');
+            throw new Error('JSON file not found');
+        }
+        
+        console.log('📄 Loading JSON file:', jsonFile);
+        
+        // Force fresh load of segment data with cache busting
+        const timestamp = new Date().getTime();
+        return fetch(`/outputs/${jsonFile}?t=${timestamp}&fresh=true`);
+    })
+    .then(response => {
+        console.log('📡 JSON file response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`Failed to load segment data: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(freshSegmentData => {
+        console.log('📊 Fresh segment data loaded:', freshSegmentData);
+        
+        // FORCE UPDATE: Replace potentially stale data with fresh data
+        canvasData.segmentInfo = freshSegmentData;
+        
+        console.log('✅ Fresh segment data loaded successfully');
+        
+        proceedWithDrawing();
+    })
+    .catch(error => {
+        console.error('❌ Error loading fresh segment data:', error);
+        showAlert('Error loading segment data. Please try re-segmenting the image.', 'danger');
+    });
+    
+    function proceedWithDrawing() {
+        console.log('🚀 proceedWithDrawing called');
+        
+        // Validate segment data
+        if (!canvasData.segmentInfo || !canvasData.segmentInfo.segments) {
+            showAlert('No segment data available', 'danger');
+            return;
+        }
+        
+        const segments = canvasData.segmentInfo.segments;
+        if (segments.length === 0) {
+            showAlert('No segments available to draw', 'warning');
+            return;
+        }
+        
+        // Debug: Log current segment data before drawing
+        const segmentIds = segments.map(s => s.id);
+        const minId = Math.min(...segmentIds);
+        const maxId = Math.max(...segmentIds);
+        console.log(`🎨 Starting to draw ${segments.length} segments, ID range: ${minId}-${maxId}`);
+        
+        // Validate segment ID consistency
+        const uniqueIds = new Set(segmentIds);
+        if (uniqueIds.size !== segmentIds.length) {
+            console.error(`❌ Critical error: Duplicate segment IDs detected! Unique: ${uniqueIds.size}, Total: ${segmentIds.length}`);
+            showAlert('Error: Duplicate segment IDs detected. Please re-segment the image.', 'danger');
+            return;
+        }
+        
+        // Get current parameter values
+        const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
+        const videoDuration = parseInt(document.getElementById('videoDuration').value);
+        const videoFps = parseInt(document.getElementById('videoFps').value);
+
+        // Reset interruption flag
+        canvasData.drawingInterrupted = false;
+        canvasData.isDrawingAll = true;
+        
+        // Sort segments by pixel count (largest first)
+        const sortedSegments = segments.sort((a, b) => b.pixel_count - a.pixel_count);
+        
+        console.log('🎬 Calling drawSegmentsWithVideo with', sortedSegments.length, 'segments');
+        drawSegmentsWithVideo(sortedSegments, 'all segments', videoDuration, videoFps, strokeDensity);
+    }
+}
+
+function highlightContrastBoundaries() {
+    if (!currentFileId) {
+        showAlert('No file selected', 'danger');
         return;
     }
     
     // Get current parameter values
+    const sensitivity = parseInt(document.getElementById('boundarySensitivity').value);
     const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
     const videoDuration = parseInt(document.getElementById('videoDuration').value);
     const videoFps = parseInt(document.getElementById('videoFps').value);
@@ -1396,14 +1817,232 @@ function drawAllSegments() {
     canvasData.drawingInterrupted = false;
     canvasData.isDrawingAll = true;
     
-    // Sort segments by pixel count (largest first)
-    const sortedSegments = canvasData.segmentInfo.segments.sort((a, b) => b.pixel_count - a.pixel_count);
+    // First, get the highlight boundaries data
+    fetch('/highlight_boundaries', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            file_id: currentFileId,
+            sensitivity: sensitivity
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.highlight_strokes) {
+            // Convert highlight strokes to segments format for drawing
+            const highlightSegments = data.highlight_strokes.map((stroke, index) => ({
+                id: `highlight_${index}`,
+                pixel_count: stroke.points ? stroke.points.length : 10, // Use points count as size
+                highlight_stroke: stroke // Store the stroke data
+            }));
+            
+            // Start drawing with video recording
+            drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, videoFps, strokeDensity);
+        } else {
+            showAlert(data.error || 'Failed to get highlight boundaries', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error getting highlight boundaries:', error);
+        showAlert('Error getting highlight boundaries: ' + error.message, 'danger');
+    });
+}
+
+function drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, videoFps, strokeDensity) {
+    if (!highlightSegments || highlightSegments.length === 0) {
+        showAlert('No highlight boundaries to draw', 'warning');
+        return;
+    }
     
-    drawSegmentsWithVideo(sortedSegments, 'all segments', videoDuration, videoFps, strokeDensity);
+    // Show animation section
+    showAnimationSection();
+    
+    // Show drawing progress and manage buttons
+    const progressDiv = document.getElementById('drawingProgress');
+    const drawAllBtn = document.getElementById('drawAllBtn');
+    const drawLargeBtn = document.getElementById('drawLargeBtn');
+    const drawMediumBtn = document.getElementById('drawMediumBtn');
+    const drawSmallBtn = document.getElementById('drawSmallBtn');
+    const highlightBtn = document.getElementById('highlightBoundariesBtn');
+    const stopBtn = document.getElementById('stopDrawingBtn');
+    
+    if (progressDiv) progressDiv.style.display = 'block';
+    if (drawAllBtn) {
+        drawAllBtn.disabled = true;
+        drawAllBtn.style.display = 'none';
+    }
+    if (drawLargeBtn) {
+        drawLargeBtn.disabled = true;
+        drawLargeBtn.style.display = 'none';
+    }
+    if (drawMediumBtn) {
+        drawMediumBtn.disabled = true;
+        drawMediumBtn.style.display = 'none';
+    }
+    if (drawSmallBtn) {
+        drawSmallBtn.disabled = true;
+        drawSmallBtn.style.display = 'none';
+    }
+    if (highlightBtn) {
+        highlightBtn.disabled = true;
+        highlightBtn.style.display = 'none';
+    }
+    if (stopBtn) {
+        stopBtn.style.display = 'inline-block';
+    }
+    
+    // Update brush type display
+    updateBrushTypeDisplay();
+    
+    // Reset and initialize progress bars
+    resetProgressBars();
+    updateDrawingProgress(0, highlightSegments.length);
+    
+    startDrawingTimer();
+    
+    showAlert(`Drawing ${highlightSegments.length} highlight boundaries`, 'info');
+    
+    // Initialize video recorder
+    const videoRecorder = new VideoRecorder({
+        videoDuration: videoDuration,
+        segmentCount: highlightSegments.length,
+        canvas: document.getElementById('drawingCanvas'),
+        frameRate: videoFps,
+        timeCompression: true,
+        isCumulative: true
+    });
+    
+    // Start video recording
+    videoRecorder.start();
+    
+    // Initialize drawing state
+    let currentIndex = 0;
+    const currentSegmentSpan = document.getElementById('currentDrawingSegment');
+    const progressTextSpan = document.getElementById('drawingProgressInfo');
+    
+    function drawNextHighlightBoundary() {
+        // Check if drawing was interrupted
+        if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
+            stopDrawingTimer();
+            if (videoRecorder) {
+                videoRecorder.stop();
+            }
+            return;
+        }
+        
+        // Check if we've drawn all boundaries
+        if (currentIndex >= highlightSegments.length) {
+            // Finished drawing all boundaries - restore UI
+            const progressDiv = document.getElementById('drawingProgress');
+            const drawAllBtn = document.getElementById('drawAllBtn');
+            const drawLargeBtn = document.getElementById('drawLargeBtn');
+            const drawMediumBtn = document.getElementById('drawMediumBtn');
+            const drawSmallBtn = document.getElementById('drawSmallBtn');
+            const highlightBtn = document.getElementById('highlightBoundariesBtn');
+            const stopBtn = document.getElementById('stopDrawingBtn');
+            
+            if (progressDiv) progressDiv.style.display = 'none';
+            if (drawAllBtn) {
+                drawAllBtn.disabled = false;
+                drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
+                drawAllBtn.style.display = 'inline-block';
+            }
+            if (drawLargeBtn) {
+                drawLargeBtn.disabled = false;
+                drawLargeBtn.innerHTML = '<i class="fas fa-expand"></i> Large Fragments';
+                drawLargeBtn.style.display = 'inline-block';
+            }
+            if (drawMediumBtn) {
+                drawMediumBtn.disabled = false;
+                drawMediumBtn.innerHTML = '<i class="fas fa-circle"></i> Medium Fragments';
+                drawMediumBtn.style.display = 'inline-block';
+            }
+            if (drawSmallBtn) {
+                drawSmallBtn.disabled = false;
+                drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
+                drawSmallBtn.style.display = 'inline-block';
+            }
+            if (highlightBtn) {
+                highlightBtn.disabled = false;
+                highlightBtn.innerHTML = '<i class="fas fa-highlighter"></i> Highlight Boundaries';
+                highlightBtn.style.display = 'inline-block';
+            }
+            if (stopBtn) stopBtn.style.display = 'none';
+            stopDrawingTimer();
+            
+            // Finalize video
+            if (videoRecorder) {
+                videoRecorder.captureFrame(); // Final frame
+                const stopResult = videoRecorder.stop();
+                
+                // Check if stop() returns a Promise
+                if (stopResult && typeof stopResult.then === 'function') {
+                    stopResult.then(videoBlob => {
+                        if (videoBlob) {
+                            showVideoResults(videoBlob, 'highlight_boundaries');
+                        }
+                    }).catch(error => {
+                        console.error('Error stopping video recorder:', error);
+                    });
+                } else {
+                    // If stop() doesn't return a Promise, handle synchronously
+                    console.log('Video recorder stopped synchronously');
+                    if (stopResult) {
+                        showVideoResults(stopResult, 'highlight_boundaries');
+                    }
+                }
+            }
+            
+            showAlert(`Successfully drew ${highlightSegments.length} highlight boundaries`, 'success');
+            return;
+        }
+        
+        const segment = highlightSegments[currentIndex];
+        
+        // Update progress
+        if (currentSegmentSpan) currentSegmentSpan.textContent = segment.id;
+        if (progressTextSpan) progressTextSpan.textContent = `${currentIndex + 1} / ${highlightSegments.length}`;
+        
+        // Update drawing progress bar
+        updateDrawingProgress(currentIndex + 1, highlightSegments.length);
+        
+        // Capture frame before drawing this boundary
+        if (videoRecorder) {
+            videoRecorder.captureFrame();
+        }
+        
+        // Draw this highlight boundary using the stored stroke data
+        const stroke = segment.highlight_stroke;
+        if (stroke && stroke.points) {
+            // Draw the tapered stroke directly
+            drawTaperedStrokes([stroke]);
+            
+            // Capture frame after drawing
+            if (videoRecorder) {
+                videoRecorder.captureFrame();
+            }
+            
+            // Calculate dynamic delay based on boundary complexity
+            let delay = Math.max(100, Math.min(1000, stroke.points.length * 10)); // 10ms per point
+            
+            // Move to next boundary after calculated delay
+            currentIndex++;
+            setTimeout(drawNextHighlightBoundary, delay);
+        } else {
+            console.warn(`Highlight boundary ${segment.id} has no stroke data`);
+            currentIndex++;
+            setTimeout(drawNextHighlightBoundary, 50); // Short delay on error
+        }
+    }
+    
+    // Start drawing the first boundary
+    drawNextHighlightBoundary();
 }
 
 function drawSmallFragments() {
-    if (!canvasData.segmentInfo || !currentFileId) {
+    if (!canvasData.segmentInfo || !canvasData.segmentInfo.segments || !currentFileId) {
         showAlert('No segment data available', 'danger');
         return;
     }
@@ -1446,7 +2085,7 @@ function drawSmallFragments() {
 }
 
 function drawLargeFragments() {
-    if (!canvasData.segmentInfo || !currentFileId) {
+    if (!canvasData.segmentInfo || !canvasData.segmentInfo.segments || !currentFileId) {
         showAlert('No segment data available', 'danger');
         return;
     }
@@ -1489,7 +2128,7 @@ function drawLargeFragments() {
 }
 
 function drawMediumFragments() {
-    if (!canvasData.segmentInfo || !currentFileId) {
+    if (!canvasData.segmentInfo || !canvasData.segmentInfo.segments || !currentFileId) {
         showAlert('No segment data available', 'danger');
         return;
     }
@@ -1663,6 +2302,13 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
         }
         
         // Draw this segment
+        console.log(`🎨 Drawing segment ${segment.id} (${currentIndex + 1}/${sortedSegments.length})`);
+        console.log(`📊 Segment data:`, {
+            id: segment.id,
+            pixel_count: segment.pixel_count,
+            average_color: segment.average_color
+        });
+        
         fetch('/draw_segment', {
             method: 'POST',
             headers: {
@@ -1675,8 +2321,13 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
                 stroke_density: strokeDensity
             })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log(`📡 Backend response for segment ${segment.id}:`, response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log(`📊 Backend data for segment ${segment.id}:`, data);
+            
             // Check again if drawing was interrupted
             if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
                 stopDrawingTimer();
@@ -1687,6 +2338,8 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             }
             
             if (data.success) {
+                console.log(`✅ Successfully got brush strokes for segment ${segment.id}:`, data.brush_strokes?.length || 0, 'strokes');
+                
                 // Apply brush strokes with enhanced visualization
                 applyBrushStrokesFast(data.brush_strokes, segment.id);
                 
@@ -1788,6 +2441,10 @@ function hideSegmentationResults() {
     document.getElementById('segmentationResults').style.display = 'none';
 }
 
+function hideBoundaryResults() {
+    document.getElementById('boundaryResults').style.display = 'none';
+}
+
 function resetSegmentButton() {
     const segmentBtn = document.getElementById('segmentBtn');
     segmentBtn.disabled = false;
@@ -1800,6 +2457,7 @@ function resetApp() {
     clearImage();
     hideResults();
     hideSegmentationResults();
+    hideBoundaryResults();
     
     // Clean up video resources before reset
     canvasData.videoResults.forEach(videoInfo => {
@@ -1846,6 +2504,12 @@ function generateVideoFromFrames() {
     if (canvasData.cumulativeFrames.length === 0) {
         showAlert('No frames captured yet. Please draw something first!', 'warning');
         return;
+    }
+    
+    // Show animation section if not visible
+    const animationSection = document.getElementById('animationSection');
+    if (animationSection) {
+        animationSection.style.display = 'block';
     }
     
     const videoDuration = parseInt(document.getElementById('videoDuration').value);
@@ -1956,14 +2620,22 @@ function clearVideoResults() {
 }
 
 function updateStyleDescription() {
-    const style = document.getElementById('styleSelect').value;
+    const styleSelect = document.getElementById('styleSelect');
     const description = document.getElementById('styleDescription');
     const stylePreview = document.querySelector('.style-preview');
 
-    description.textContent = styleDescriptions[style];
+    if (!styleSelect) return;
     
-    // Update style-specific styling
-    stylePreview.className = `style-preview p-3 rounded bg-light style-${style}`;
+    const style = styleSelect.value;
+
+    if (description && styleDescriptions[style]) {
+        description.textContent = styleDescriptions[style];
+    }
+    
+    if (stylePreview) {
+        // Update style-specific styling
+        stylePreview.className = `style-preview p-3 rounded bg-light style-${style}`;
+    }
 }
 
 function updateBrushTypeDisplay() {
@@ -2442,25 +3114,61 @@ function showVideoResults(videoUrl) {
         canvasData.videoResults.push(videoInfo);
     }
     
-    // Always hide the video placeholder and show the video container
+    // Show video in Animation section first, then fallback to old container
+    const animationVideoContainer = document.getElementById('videoResultContainer');
+    const animationVideo = document.getElementById('embeddedResultVideo');
+    const downloadVideoBtn = document.getElementById('embeddedDownloadBtn');
     const videoPlaceholder = document.getElementById('videoPlaceholder');
-    const videoContainer = document.getElementById('videoResultContainer');
     
-    if (videoPlaceholder) {
-        videoPlaceholder.style.display = 'none';
-    }
-    
-    if (videoContainer) {
-        videoContainer.style.display = 'block';
+    if (animationVideoContainer && animationVideo) {
+        // Hide placeholder and show video container
+        if (videoPlaceholder) {
+            videoPlaceholder.style.display = 'none';
+        }
         
-        // Update the video directly in the existing container
-        const existingVideo = videoContainer.querySelector('video');
-        if (existingVideo) {
-            existingVideo.src = videoUrl;
-            existingVideo.load();
-        } else {
-            // Create or update video results area to show the cumulative video
-            updateVideoResultsDisplay();
+        // Show video in Animation section
+        animationVideoContainer.style.display = 'block';
+        animationVideo.src = videoUrl;
+        animationVideo.load();
+        
+        // Show and setup download button
+        if (downloadVideoBtn) {
+            downloadVideoBtn.style.display = 'inline-block';
+            downloadVideoBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = videoUrl;
+                a.download = `drawing_animation_${Date.now()}.mp4`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+        }
+        
+        // Scroll to video container
+        animationVideoContainer.scrollIntoView({ behavior: 'smooth' });
+        
+        console.log('Video displayed in Animation section');
+    } else {
+        // Fallback to old video container system
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const videoContainer = document.getElementById('videoResultContainer');
+        
+        if (videoPlaceholder) {
+            videoPlaceholder.style.display = 'none';
+        }
+        
+        if (videoContainer) {
+            videoContainer.style.display = 'block';
+            
+            // Update the video directly in the existing container
+            const existingVideo = videoContainer.querySelector('video');
+            if (existingVideo) {
+                existingVideo.src = videoUrl;
+                existingVideo.load();
+            } else {
+                // Create or update video results area to show the cumulative video
+                updateVideoResultsDisplay();
+            }
         }
     }
     
@@ -2516,28 +3224,521 @@ function updateVideoResultsDisplay() {
     
     // Also update the original results section if it exists (for backward compatibility)
     const resultsSection = document.getElementById('resultsSection');
-    const resultVideo = document.getElementById('resultVideo');
-    const downloadBtn = document.getElementById('downloadBtn');
+    const resultVideo = resultsSection ? resultsSection.querySelector('#resultVideo') : null;
+    const downloadBtn = resultsSection ? resultsSection.querySelector('#downloadBtn') : null;
     
     if (resultsSection) {
         resultsSection.style.display = 'block';
+        
+        // Show the latest video in the original results section
+        const latestVideo = canvasData.videoResults[canvasData.videoResults.length - 1];
+        if (resultVideo && latestVideo) {
+            resultVideo.src = latestVideo.url;
+            resultVideo.load();
+        }
+        
+        if (downloadBtn && latestVideo) {
+            downloadBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = latestVideo.url;
+                a.download = `drawing_video_latest_${latestVideo.fileId || 'video'}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+        }
+    }
+}
+
+// Boundary Detection Functions
+function detectBoundaries() {
+    if (!currentFileId) {
+        showAlert('Please upload an image first', 'warning');
+        return;
+    }
+
+    const sensitivity = document.getElementById('boundarySensitivity').value;
+    const fragmentation = document.getElementById('boundaryFragmentation').value;
+    const boundariesBtn = document.getElementById('boundariesBtn');
+    
+    // Disable button and show loading state
+    boundariesBtn.disabled = true;
+    boundariesBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Detecting Boundaries...';
+    
+    showAlert('Starting boundary detection...', 'info');
+
+    fetch('/detect_boundaries', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId,
+            sensitivity: parseInt(sensitivity),
+            fragmentation: parseInt(fragmentation)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Boundary detection started. Please wait...', 'info');
+            // Start polling for boundary detection status
+            pollBoundaryStatus(currentFileId);
+        } else {
+            showAlert(data.error || 'Failed to start boundary detection', 'danger');
+            resetBoundaryButton();
+        }
+    })
+    .catch(error => {
+        console.error('Boundary detection error:', error);
+        showAlert('Failed to start boundary detection. Please try again.', 'danger');
+        resetBoundaryButton();
+    });
+}
+
+function pollBoundaryStatus(fileId) {
+    const statusInterval = setInterval(() => {
+        fetch(`/boundary_status/${fileId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'completed') {
+                clearInterval(statusInterval);
+                showAlert('Boundary detection completed!', 'success');
+                loadBoundaryResults(fileId);
+                resetBoundaryButton();
+            } else if (data.status === 'error') {
+                clearInterval(statusInterval);
+                showAlert(data.error || 'Boundary detection failed', 'danger');
+                resetBoundaryButton();
+            } else if (data.status === 'processing') {
+                // Continue polling
+                showAlert('Detecting boundaries... Please wait.', 'info');
+            }
+        })
+        .catch(error => {
+            console.error('Status polling error:', error);
+            clearInterval(statusInterval);
+            showAlert('Failed to check boundary detection status', 'danger');
+            resetBoundaryButton();
+        });
+    }, 2000); // Poll every 2 seconds
+}
+
+function loadBoundaryResults(fileId) {
+    const sensitivity = document.getElementById('boundarySensitivity').value;
+    const fragmentation = document.getElementById('boundaryFragmentation').value;
+    
+    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
+    
+    fetch(`/boundaries/${fileId}?sensitivity=${sensitivity}&fragmentation=${fragmentation}`)
+    .then(response => response.json())
+    .then(data => {
+        console.log(`DEBUG: Frontend API response:`, data);
+        console.log(`DEBUG: Frontend received ${data.boundary_data ? data.boundary_data.length : 0} boundaries`);
+        if (data.boundary_data && data.boundary_data.length >= 0) {
+            canvasData.boundaries = data.boundary_data;
+            displayBoundaryResults(data.boundary_data);
+        } else {
+            showAlert(data.error || 'Failed to load boundary results', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Load boundary results error:', error);
+        showAlert('Failed to load boundary results', 'danger');
+    });
+}
+
+function displayBoundaryResults(boundaries) {
+    console.log(`DEBUG: displayBoundaryResults called with ${boundaries.length} boundaries`);
+    const boundaryResults = document.getElementById('boundaryResults');
+    const boundaryList = document.getElementById('boundaryList');
+    
+    // Clear existing results
+    boundaryList.innerHTML = '';
+    
+    if (boundaries.length === 0) {
+        boundaryList.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No boundaries detected</td></tr>';
+    } else {
+        boundaries.forEach((boundary, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${boundary.id}</td>
+                <td>${boundary.length}</td>
+                <td>${(boundary.contrast_ratio * 100).toFixed(1)}%</td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="drawBoundary('${boundary.id}', 'brightest')">
+                            <i class="fas fa-brush"></i> Brightest
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="drawBoundary('${boundary.id}', 'darkest')">
+                            <i class="fas fa-brush"></i> Darkest
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <small class="text-muted">
+                        Bright: rgb(${boundary.brightest_color.r}, ${boundary.brightest_color.g}, ${boundary.brightest_color.b})<br>
+                        Dark: rgb(${boundary.darkest_color.r}, ${boundary.darkest_color.g}, ${boundary.darkest_color.b})
+                    </small>
+                </td>
+            `;
+            boundaryList.appendChild(row);
+        });
     }
     
-    // Show the latest video in the original results section
-    const latestVideo = canvasData.videoResults[canvasData.videoResults.length - 1];
-    if (resultVideo && latestVideo) {
-        resultVideo.src = latestVideo.url;
-        resultVideo.load();
+    // Show/hide Draw All Boundaries button
+    const drawAllBtn = document.getElementById('drawAllBoundariesBtn');
+    if (drawAllBtn) {
+        drawAllBtn.style.display = boundaries.length > 0 ? 'inline-block' : 'none';
     }
     
-    if (downloadBtn && latestVideo) {
-        downloadBtn.onclick = () => {
-            const a = document.createElement('a');
-            a.href = latestVideo.url;
-            a.download = `drawing_video_latest_${latestVideo.fileId || 'video'}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        };
+    // Show results section
+    boundaryResults.style.display = 'block';
+    showAlert(`Found ${boundaries.length} contrast boundaries`, 'success');
+}
+
+function drawBoundary(boundaryId, colorType) {
+    if (!currentFileId) {
+        showAlert('No image loaded', 'warning');
+        return;
+    }
+
+    const sensitivity = document.getElementById('boundarySensitivity').value;
+    
+    // Initialize canvas if needed
+    if (!canvasData.canvasInitialized) {
+        initializeInteractiveCanvas(currentFileId);
+    }
+    
+    showAlert(`Drawing boundary ${boundaryId} with ${colorType} color...`, 'info');
+
+    fetch('/draw_boundary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId,
+            boundary_id: parseInt(boundaryId),
+            color_type: colorType,
+            sensitivity: parseInt(sensitivity)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.boundary_strokes) {
+            // Draw the boundary strokes on the canvas
+            applyBrushStrokesFast(data.boundary_strokes, `boundary_${boundaryId}`);
+            showAlert(`Boundary ${boundaryId} drawn successfully!`, 'success');
+        } else {
+            showAlert(data.error || 'Failed to draw boundary', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Draw boundary error:', error);
+        showAlert('Failed to draw boundary. Please try again.', 'danger');
+    });
+}
+
+function resetBoundaryButton() {
+    const boundariesBtn = document.getElementById('boundariesBtn');
+    boundariesBtn.disabled = false;
+    boundariesBtn.innerHTML = '<i class="fas fa-search"></i> Detect Boundaries';
+}
+
+function drawAllBoundaries() {
+    if (!currentFileId || !canvasData.boundaries || canvasData.boundaries.length === 0) {
+        showAlert('No boundaries available to draw', 'warning');
+        return;
+    }
+
+    const drawAllBtn = document.getElementById('drawAllBoundariesBtn');
+    if (drawAllBtn) {
+        drawAllBtn.disabled = true;
+        drawAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drawing All Boundaries...';
+    }
+
+    // Initialize canvas if needed
+    if (!canvasData.canvasInitialized) {
+        initializeInteractiveCanvas(currentFileId);
+    }
+
+    let currentIndex = 0;
+    const boundaries = canvasData.boundaries;
+    let successCount = 0;
+    let errorCount = 0;
+
+    function drawNextBoundary() {
+        if (currentIndex >= boundaries.length) {
+            // All boundaries processed
+            if (drawAllBtn) {
+                drawAllBtn.disabled = false;
+                drawAllBtn.innerHTML = '<i class="fas fa-paint-brush"></i> Draw All Boundaries';
+            }
+            
+            const message = `Completed drawing all boundaries! Success: ${successCount}, Errors: ${errorCount}`;
+            showAlert(message, errorCount === 0 ? 'success' : 'warning');
+            return;
+        }
+
+        const boundary = boundaries[currentIndex];
+        const boundaryId = boundary.id;
+        const colorType = 'brightest'; // Default to brightest color
+
+        showAlert(`Drawing boundary ${currentIndex + 1} of ${boundaries.length}...`, 'info');
+
+        // Draw current boundary
+        fetch('/draw_boundary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_id: currentFileId,
+                boundary_id: parseInt(boundaryId),
+                color_type: colorType,
+                sensitivity: parseInt(document.getElementById('boundarySensitivity').value)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.boundary_strokes) {
+                // Apply strokes to canvas
+                applyBrushStrokesFast(data.boundary_strokes);
+                successCount++;
+            } else {
+                console.error('Failed to draw boundary:', data.error);
+                errorCount++;
+            }
+            
+            currentIndex++;
+            // Small delay between boundaries for visual effect
+            setTimeout(drawNextBoundary, 200);
+        })
+        .catch(error => {
+            console.error('Error drawing boundary:', error);
+            errorCount++;
+            currentIndex++;
+            setTimeout(drawNextBoundary, 200);
+        });
+    }
+
+    // Start drawing boundaries
+    drawNextBoundary();
+}
+
+// Initialize collapsible tables functionality
+function initializeCollapsibleTables() {
+    // Handle boundary table collapse
+    const boundaryCollapse = document.getElementById('boundaryDetailsCollapse');
+    const boundaryChevron = document.getElementById('boundaryChevron');
+    
+    if (boundaryCollapse && boundaryChevron) {
+        boundaryCollapse.addEventListener('show.bs.collapse', function() {
+            boundaryChevron.classList.remove('fa-chevron-down');
+            boundaryChevron.classList.add('fa-chevron-up');
+        });
+        
+        boundaryCollapse.addEventListener('hide.bs.collapse', function() {
+            boundaryChevron.classList.remove('fa-chevron-up');
+            boundaryChevron.classList.add('fa-chevron-down');
+        });
+    }
+    
+    // Handle segmentation table collapse
+    const segmentationCollapse = document.getElementById('segmentationDetailsCollapse');
+    const segmentationChevron = document.getElementById('segmentationChevron');
+    
+    if (segmentationCollapse && segmentationChevron) {
+        segmentationCollapse.addEventListener('show.bs.collapse', function() {
+            segmentationChevron.classList.remove('fa-chevron-down');
+            segmentationChevron.classList.add('fa-chevron-up');
+        });
+        
+        segmentationCollapse.addEventListener('hide.bs.collapse', function() {
+            segmentationChevron.classList.remove('fa-chevron-up');
+            segmentationChevron.classList.add('fa-chevron-down');
+        });
+    }
+}
+
+// Initialize animation controls functionality
+function initializeAnimationControls() {
+    // Start Drawing Animation button
+    const startDrawingBtn = document.getElementById('startDrawingBtn');
+    if (startDrawingBtn) {
+        startDrawingBtn.addEventListener('click', function() {
+            startDrawingAnimation();
+        });
+    }
+    
+    // Pause Drawing button
+    const pauseDrawingBtn = document.getElementById('pauseDrawingBtn');
+    if (pauseDrawingBtn) {
+        pauseDrawingBtn.addEventListener('click', function() {
+            pauseDrawingAnimation();
+        });
+    }
+    
+    // Reset Canvas button
+    const resetDrawingBtn = document.getElementById('resetDrawingBtn');
+    if (resetDrawingBtn) {
+        resetDrawingBtn.addEventListener('click', function() {
+            resetDrawingCanvas();
+        });
+    }
+    
+    // Generate Video button
+    const generateVideoBtn = document.getElementById('generateVideoBtn');
+    if (generateVideoBtn) {
+        generateVideoBtn.addEventListener('click', function() {
+            generateVideoFromFrames();
+        });
+    }
+    
+    // Download Video button
+    const downloadVideoBtn = document.getElementById('downloadVideoBtn');
+    if (downloadVideoBtn) {
+        downloadVideoBtn.addEventListener('click', function() {
+            downloadGeneratedVideo();
+        });
+    }
+}
+
+// Show animation section when needed
+function showAnimationSection() {
+    const animationSection = document.getElementById('animationSection');
+    if (animationSection) {
+        animationSection.style.display = 'block';
+        // Scroll to animation section
+        animationSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Start drawing animation
+function startDrawingAnimation() {
+    const startBtn = document.getElementById('startDrawingBtn');
+    const pauseBtn = document.getElementById('pauseDrawingBtn');
+    
+    if (startBtn) {
+        startBtn.style.display = 'none';
+    }
+    if (pauseBtn) {
+        pauseBtn.style.display = 'inline-block';
+    }
+    
+    // Connect to existing automatic drawing functionality
+    const drawAllBtn = document.getElementById('drawAllBtn');
+    if (drawAllBtn) {
+        drawAllBtn.click(); // Trigger existing draw all functionality
+    } else {
+        // Fallback: start automatic drawing if available
+        if (typeof startAutomaticDrawing === 'function') {
+            startAutomaticDrawing();
+        } else {
+            showAlert('Drawing animation started! Use boundary detection to begin drawing.', 'info');
+        }
+    }
+}
+
+// Pause drawing animation
+function pauseDrawingAnimation() {
+    const startBtn = document.getElementById('startDrawingBtn');
+    const pauseBtn = document.getElementById('pauseDrawingBtn');
+    
+    if (startBtn) {
+        startBtn.style.display = 'inline-block';
+        startBtn.innerHTML = '<i class="fas fa-play"></i> Resume Drawing';
+    }
+    if (pauseBtn) {
+        pauseBtn.style.display = 'none';
+    }
+    
+    // Connect to existing stop drawing functionality
+    const stopDrawingBtn = document.getElementById('stopDrawingBtn');
+    if (stopDrawingBtn) {
+        stopDrawingBtn.click(); // Trigger existing stop functionality
+    }
+    
+    showAlert('Drawing animation paused', 'info');
+}
+
+// Reset drawing canvas
+function resetDrawingCanvas() {
+    const startBtn = document.getElementById('startDrawingBtn');
+    const pauseBtn = document.getElementById('pauseDrawingBtn');
+    
+    if (startBtn) {
+        startBtn.style.display = 'inline-block';
+        startBtn.innerHTML = '<i class="fas fa-play"></i> Start Drawing Animation';
+    }
+    if (pauseBtn) {
+        pauseBtn.style.display = 'none';
+    }
+    
+    // Connect to existing clear canvas functionality
+    const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+    if (clearCanvasBtn) {
+        clearCanvasBtn.click(); // Trigger existing clear functionality
+    }
+    
+    // Clear canvas data
+    if (canvasData) {
+        canvasData.cumulativeFrames = [];
+        canvasData.videoResults = [];
+    }
+    
+    // Hide video preview area
+    const videoPreviewArea = document.getElementById('videoPreviewArea');
+    const downloadVideoBtn = document.getElementById('downloadVideoBtn');
+    
+    if (videoPreviewArea) {
+        videoPreviewArea.style.display = 'none';
+    }
+    if (downloadVideoBtn) {
+        downloadVideoBtn.style.display = 'none';
+    }
+    
+    showAlert('Canvas reset successfully', 'success');
+}
+
+// Download generated video
+function downloadGeneratedVideo() {
+    const downloadBtn = document.getElementById('downloadBtn');
+    if (downloadBtn) {
+        downloadBtn.click(); // Use existing download functionality
+    }
+}
+
+// Create canvas container directly in Animation section (no moving required)
+function createCanvasInAnimationSection(canvasContainer) {
+    const animationCanvasArea = document.getElementById('interactiveCanvasArea');
+    
+    if (animationCanvasArea && canvasContainer) {
+        // Clear existing content in animation canvas area
+        animationCanvasArea.innerHTML = '';
+        
+        // Set proper styling for animation section
+        canvasContainer.className = 'canvas-container';
+        
+        // Add the canvas container directly to animation section
+        animationCanvasArea.appendChild(canvasContainer);
+        
+        // Show animation section
+        showAnimationSection();
+        
+        console.log('Canvas created directly in Animation section');
+    } else {
+        console.warn('Could not create canvas in Animation section - elements not found');
+        
+        // Fallback: try to find segmentation results and append there
+        const segmentationResults = document.getElementById('segmentationResults');
+        if (segmentationResults && canvasContainer) {
+            const infoBody = segmentationResults.querySelector('.card-body .col-12.mt-3');
+            if (infoBody) {
+                infoBody.appendChild(canvasContainer);
+                console.log('Canvas added to segmentation results as fallback');
+            }
+        }
     }
 }

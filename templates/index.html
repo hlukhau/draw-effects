@@ -90,10 +90,14 @@
                                 <div class="form-text">Frames per second for smoother video</div>
                             </div>
                             <div class="col-md-4">
-                                <div class="style-preview p-3 rounded bg-light">
-                                    <h6>Style Description:</h6>
-                                    <p id="styleDescription">Pencil sketching with hatching and cross-hatching techniques, starting with broad strokes and progressing to fine details.</p>
-                                </div>
+                                <label for="boundarySensitivity" class="form-label">Boundary Sensitivity: <span id="sensitivityValue">50</span></label>
+                                <input type="range" class="form-range" id="boundarySensitivity" min="1" max="100" value="50">
+                                <div class="form-text">Higher values find weaker/subtle boundaries, lower values find only strong boundaries</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="boundaryFragmentation" class="form-label">Boundary Fragmentation: <span id="fragmentationValue">1</span></label>
+                                <input type="range" class="form-range" id="boundaryFragmentation" min="1" max="6" value="1">
+                                <div class="form-text">Split each boundary into 1-6 fragments (1=no split, 6=maximum fragments)</div>
                             </div>
                         </div>
                     </div>
@@ -106,11 +110,17 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <button id="segmentBtn" class="btn btn-info btn-lg mb-2" disabled onclick="processSegmentation()">
                                     <i class="fas fa-eye"></i> Show Segmentation
                                 </button>
                                 <div class="form-text">Preview how the image will be segmented into detail levels</div>
+                            </div>
+                            <div class="col-md-6">
+                                <button id="boundariesBtn" class="btn btn-secondary btn-lg mb-2" disabled onclick="detectBoundaries()">
+                                    <i class="fas fa-search"></i> Detect Boundaries
+                                </button>
+                                <div class="form-text">Find contrast boundaries for individual drawing</div>
                             </div>
                         </div>
                         
@@ -124,54 +134,131 @@
                     </div>
                 </div>
 
+                <!-- Animation Section -->
+                <div id="animationSection" class="card mb-4 shadow-sm" style="display: none;">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-play-circle"></i> Animation</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Interactive Canvas Area -->
+                        <div id="interactiveCanvasArea" class="mb-4">
+                            <!-- Canvas will be dynamically created here -->
+                        </div>
+                        
+                        <!-- Animation Controls -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-paint-brush"></i> Drawing Controls</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-grid gap-2">
+                                            <button id="startDrawingBtn" class="btn btn-success">
+                                                <i class="fas fa-play"></i> Start Drawing Animation
+                                            </button>
+                                            <button id="pauseDrawingBtn" class="btn btn-warning" style="display: none;">
+                                                <i class="fas fa-pause"></i> Pause Drawing
+                                            </button>
+                                            <button id="resetDrawingBtn" class="btn btn-outline-secondary">
+                                                <i class="fas fa-redo"></i> Reset Canvas
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0"><i class="fas fa-video"></i> Video Generation</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="d-grid gap-2">
+                                            <button id="generateVideoBtn" class="btn btn-primary">
+                                                <i class="fas fa-film"></i> Generate Video
+                                            </button>
+                                            <button id="downloadVideoBtn" class="btn btn-success" style="display: none;">
+                                                <i class="fas fa-download"></i> Download Video
+                                            </button>
+                                        </div>
+                                        <div class="mt-3">
+                                            <small class="text-muted">
+                                                <i class="fas fa-info-circle"></i>
+                                                Creates time-lapse video of drawing process
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Video Preview Area -->
+                        <div id="videoPreviewArea" class="text-center" style="display: none;">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="fas fa-film"></i> Generated Video</h6>
+                                </div>
+                                <div class="card-body">
+                                    <video id="resultVideo" class="w-100 rounded" controls style="max-height: 400px;">
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Canvas Section - Legacy (will be moved to Animation) -->
+                <div id="interactiveCanvas" class="card mb-4 shadow-sm" style="display: none;">
+                    <!-- This section is now moved to Animation tab -->
+                </div>
+
+                <!-- Boundary Results Section -->
+                <div id="boundaryResults" class="card mb-4 shadow-sm" style="display: none;">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="mb-0">
+                            <button class="btn btn-link text-white text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#boundaryDetailsCollapse" aria-expanded="false" aria-controls="boundaryDetailsCollapse">
+                                <i class="fas fa-border-style me-2"></i> Detected Boundaries
+                                <i class="fas fa-chevron-down ms-2" id="boundaryChevron"></i>
+                            </button>
+                        </h5>
+                    </div>
+                    <div class="collapse" id="boundaryDetailsCollapse">
+                        <div class="card-body">
+                            <div id="boundaryInfo" class="mb-3">
+                                <!-- Boundary summary will be loaded here -->
+                            </div>
+                            <div class="mb-3 text-center">
+                                <button id="drawAllBoundariesBtn" class="btn btn-success" onclick="drawAllBoundaries()" style="display: none;">
+                                    <i class="fas fa-paint-brush"></i> Draw All Boundaries
+                                </button>
+                            </div>
+                            <div id="boundaryList" class="table-responsive">
+                                <!-- Boundary list will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Segmentation Results Section -->
                 <div id="segmentationResults" class="card mb-4 shadow-sm" style="display: none;">
                     <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-images"></i> Segmentation Results</h5>
+                        <h5 class="mb-0">
+                            <button class="btn btn-link text-white text-decoration-none p-0" type="button" data-bs-toggle="collapse" data-bs-target="#segmentationDetailsCollapse" aria-expanded="false" aria-controls="segmentationDetailsCollapse">
+                                <i class="fas fa-images me-2"></i> Segmentation Results
+                                <i class="fas fa-chevron-down ms-2" id="segmentationChevron"></i>
+                            </button>
+                        </h5>
                     </div>
-                    <div class="card-body">
-                        <div id="segmentationImages" class="d-flex flex-nowrap justify-content-between">
-                            <!-- Segmentation images will be loaded here -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Interactive Canvas Section - Now created dynamically -->
-                <div id="interactiveCanvas" class="card mb-4 shadow-sm" style="display: none;">
-                    <!-- This section is now created dynamically in the segmentation results -->
-                </div>
-
-                <!-- Results Section -->
-                <div id="resultsSection" class="card shadow-sm" style="display: none;">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0"><i class="fas fa-video"></i> Your Drawing Video</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-8">
-                                <video id="resultVideo" class="w-100 rounded" controls>
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="d-grid gap-2">
-                                    <button id="downloadBtn" class="btn btn-success btn-lg">
-                                        <i class="fas fa-download"></i> Download Video
-                                    </button>
-                                    <button class="btn btn-outline-primary" onclick="resetApp()">
-                                        <i class="fas fa-redo"></i> Create Another
-                                    </button>
-                                </div>
-                                <div class="mt-3">
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle"></i>
-                                        Video shows the drawing process from broad strokes to fine details
-                                    </small>
-                                </div>
+                    <div class="collapse" id="segmentationDetailsCollapse">
+                        <div class="card-body">
+                            <div id="segmentationImages" class="d-flex flex-nowrap justify-content-between">
+                                <!-- Segmentation images will be loaded here -->
                             </div>
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
 

@@ -8,6 +8,7 @@ from skimage import filters, morphology, measure, segmentation
 from sklearn.cluster import KMeans
 import random
 import math
+import json
 
 class DrawingEffectGenerator:
     def __init__(self):
@@ -855,29 +856,116 @@ class DrawingEffectGenerator:
         print(f"Looking for segment files in: {outputs_dir}")
         print(f"Files in directory: {os.listdir(outputs_dir) if os.path.exists(outputs_dir) else 'Directory not found'}")
         
-        json_files = [f for f in os.listdir(outputs_dir) if f.startswith(f"{file_id}_") and f.endswith('.json')]
+        # CRITICAL FIX: Exclude boundary JSON files when looking for segment data
+        json_files = [f for f in os.listdir(outputs_dir) 
+                     if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                     and 'boundaries' not in f]  # Exclude boundary files
         if not json_files:
-            # Try alternative pattern matching
-            json_files = [f for f in os.listdir(outputs_dir) if file_id in f and f.endswith('.json')]
+            # Try alternative pattern matching, still excluding boundary files
+            json_files = [f for f in os.listdir(outputs_dir) 
+                         if file_id in f and f.endswith('.json') 
+                         and 'boundaries' not in f]
             
         if not json_files:
             raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
         
-        json_path = os.path.join(outputs_dir, json_files[0])
+        # CRITICAL FIX: Always select the NEWEST JSON file by modification time
+        json_files_with_time = []
+        for json_file in json_files:
+            file_path = os.path.join(outputs_dir, json_file)
+            mod_time = os.path.getmtime(file_path)
+            json_files_with_time.append((json_file, mod_time))
+        
+        # Sort by modification time (newest first)
+        json_files_with_time.sort(key=lambda x: x[1], reverse=True)
+        newest_json_file = json_files_with_time[0][0]
+        
+        json_path = os.path.join(outputs_dir, newest_json_file)
+        print(f"DEBUG: Found {len(json_files)} JSON files for file_id: {file_id}")
+        print(f"DEBUG: Available JSON files: {[f for f, _ in json_files_with_time]}")
+        print(f"DEBUG: Selected NEWEST JSON file: {newest_json_file}")
         print(f"Loading segment data from: {json_path}")
         
         with open(json_path, 'r') as f:
             segment_data = json.load(f)
         
+        # Debug: Print the structure of segment_data
+        print(f"DEBUG: segment_data keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Not a dict'}")
+        print(f"DEBUG: segment_data type: {type(segment_data)}")
+        
+        # Handle different possible data structures
+        segments_list = None
+        if isinstance(segment_data, dict):
+            if 'segments' in segment_data:
+                segments_list = segment_data['segments']
+            elif 'segment_data' in segment_data:
+                segments_list = segment_data['segment_data']
+            else:
+                # Maybe the data is directly a list or has other keys
+                for key in segment_data.keys():
+                    if isinstance(segment_data[key], list):
+                        segments_list = segment_data[key]
+                        print(f"DEBUG: Using key '{key}' as segments list")
+                        break
+        elif isinstance(segment_data, list):
+            segments_list = segment_data
+            
+        if segments_list is None:
+            raise Exception(f"Could not find segments data in JSON structure. Available keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Data is not a dict'}")
+        
+        # Debug: Print available segment IDs
+        available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
+        print(f"DEBUG: Available segment IDs: {sorted(available_ids)[:10]}... (showing first 10)")
+        print(f"DEBUG: Looking for segment_id: {segment_id} (type: {type(segment_id)})")
+        print(f"DEBUG: Total segments: {len(segments_list)}")
+        
         # Find the target segment
         target_segment = None
-        for segment in segment_data['segments']:
+        for segment in segments_list:
             if segment['id'] == segment_id:
                 target_segment = segment
                 break
         
         if not target_segment:
-            raise Exception(f"Segment {segment_id} not found in {len(segment_data['segments'])} segments")
+            # Try alternative matching strategies
+            print(f"DEBUG: Direct ID match failed. Trying alternative strategies...")
+            
+            # Strategy 1: Try converting segment_id to int if it's a string
+            if isinstance(segment_id, str) and segment_id.isdigit():
+                segment_id_int = int(segment_id)
+                for segment in segments_list:
+                    if segment['id'] == segment_id_int:
+                        target_segment = segment
+                        print(f"DEBUG: Found segment using int conversion: {segment_id_int}")
+                        break
+            
+            # Strategy 2: Try converting segment IDs to string if segment_id is string
+            if not target_segment and isinstance(segment_id, str):
+                for segment in segments_list:
+                    if str(segment['id']) == segment_id:
+                        target_segment = segment
+                        print(f"DEBUG: Found segment using string conversion: {segment_id}")
+                        break
+            
+            # Strategy 3: Try using segment_id as index if it's within range
+            if not target_segment and isinstance(segment_id, int) and 0 <= segment_id < len(segments_list):
+                target_segment = segments_list[segment_id]
+                print(f"DEBUG: Found segment using index: {segment_id}")
+        
+        if not target_segment:
+            raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
+        
+        # Debug: Print target segment structure
+        print(f"🔍 DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
+        print(f"🔍 DEBUG: Target segment type: {type(target_segment)}")
+        if isinstance(target_segment, dict):
+            print(f"🔍 DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
+        
+        # Check if average_color exists and handle different structures
+        if 'average_color' not in target_segment:
+            print(f"❌ ERROR: 'average_color' field missing from segment {segment_id}")
+            print(f"❌ ERROR: Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
+            raise Exception(f"Segment {segment_id} missing 'average_color' field. Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
         
         # Load the mean color image to get segment mask
         mean_color_files = [f for f in os.listdir(outputs_dir) 
@@ -890,7 +978,21 @@ class DrawingEffectGenerator:
         if not mean_color_files:
             raise Exception(f"Mean color image not found for file_id: {file_id}")
         
-        mean_color_path = os.path.join(outputs_dir, mean_color_files[0])
+        # CRITICAL FIX: Always select the NEWEST mean color image by modification time
+        mean_color_files_with_time = []
+        for mean_color_file in mean_color_files:
+            file_path = os.path.join(outputs_dir, mean_color_file)
+            mod_time = os.path.getmtime(file_path)
+            mean_color_files_with_time.append((mean_color_file, mod_time))
+        
+        # Sort by modification time (newest first)
+        mean_color_files_with_time.sort(key=lambda x: x[1], reverse=True)
+        newest_mean_color_file = mean_color_files_with_time[0][0]
+        
+        mean_color_path = os.path.join(outputs_dir, newest_mean_color_file)
+        print(f"DEBUG: Found {len(mean_color_files)} mean color files for file_id: {file_id}")
+        print(f"DEBUG: Available mean color files: {[f for f, _ in mean_color_files_with_time]}")
+        print(f"DEBUG: Selected NEWEST mean color file: {newest_mean_color_file}")
         print(f"Loading mean color image from: {mean_color_path}")
         
         mean_image = cv2.imread(mean_color_path)
@@ -906,12 +1008,20 @@ class DrawingEffectGenerator:
         # Find pixels matching the segment color
         mask = np.all(mean_image == target_color, axis=2)
         
-        print(f"Found {np.sum(mask)} pixels for segment {segment_id}")
+        print(f"🔍 DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
+        print(f"🔍 DEBUG: Target color: {target_color}")
+        print(f"🔍 DEBUG: Mean image shape: {mean_image.shape}")
+        print(f"🔍 DEBUG: Mask shape: {mask.shape}")
+        print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
+        
+        if np.sum(mask) == 0:
+            print(f"❌ ERROR: No pixels found for segment {segment_id} with color {target_color}")
+            return []
         
         # Analyze segment geometry and generate brush strokes with brush type
         brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
         
-        print(f"Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
+        print(f"✅ Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     
@@ -1003,8 +1113,23 @@ class DrawingEffectGenerator:
         """Generate pencil hatching strokes aligned with segment's longest axis"""
         strokes = []
         
+        print(f"🎨 DEBUG: Starting pencil stroke generation")
+        print(f"🎨 DEBUG: Segment mask shape: {segment_mask.shape}")
+        print(f"🎨 DEBUG: Mask has True values: {np.any(segment_mask)}")
+        print(f"🎨 DEBUG: Total True pixels: {np.sum(segment_mask)}")
+        print(f"🎨 DEBUG: Stroke density: {stroke_density}")
+        
         # Get segment properties
-        props = measure.regionprops(segment_mask.astype(int))[0]
+        labeled_mask = measure.label(segment_mask.astype(int))
+        regions = measure.regionprops(labeled_mask)
+        
+        print(f"🎨 DEBUG: Found {len(regions)} regions in mask")
+        
+        if not regions:
+            print(f"❌ ERROR: No regions found in segment mask!")
+            return []
+        
+        props = regions[0]
         centroid = props.centroid
         orientation = props.orientation
         bbox = props.bbox
@@ -1335,6 +1460,10 @@ class DrawingEffectGenerator:
                             'points': stroke_points,
                             'type': 'pencil'
                         })
+        
+        print(f"🎨 DEBUG: Pencil stroke generation completed")
+        print(f"🎨 DEBUG: Total strokes generated: {len(strokes)}")
+        print(f"🎨 DEBUG: Stroke types: {[s.get('type', 'unknown') for s in strokes[:5]]}")  # Show first 5
         
         return strokes
     
@@ -1774,3 +1903,761 @@ class DrawingEffectGenerator:
             import traceback
             traceback.print_exc()
             return None
+
+    def detect_contrast_boundaries(self, input_path, output_dir, file_id, sensitivity=50, fragmentation=50, progress_callback=None):
+        """
+        Detect contrast boundaries based on segmentation results with adjustable sensitivity and fragmentation
+        
+        Args:
+            input_path: Path to input image
+            output_dir: Directory to save boundary data
+            file_id: Unique file identifier
+            sensitivity: Sensitivity parameter (1-100, higher = more sensitive to weak boundaries)
+            fragmentation: Boundary fragmentation level (1-100, higher = more fragments)
+            progress_callback: Function to call with progress updates
+            
+        Returns:
+            List of boundary fragment data with coordinates and individual contrast values
+        """
+        if progress_callback:
+            progress_callback(5, "Loading image for boundary detection...")
+        
+        # Load and preprocess image
+        image = self._load_and_preprocess_image(input_path)
+        
+        if progress_callback:
+            progress_callback(15, "Generating segmentation for boundary detection...")
+        
+        # Generate segmentation to get fragments as base for boundary detection
+        segment_mask = self._segment_by_color_similarity(image, threshold=20)
+        
+        # Convert segment mask to list of segments with coordinates
+        segments = self._convert_mask_to_segments(segment_mask)
+        
+        if progress_callback:
+            progress_callback(40, f"Generated {len(segments)} segments, detecting boundaries...")
+        
+        # Detect boundaries between segments with fragmentation
+        print(f"DEBUG: detect_contrast_boundaries called with fragmentation={fragmentation}, type={type(fragmentation)}")
+        boundaries = self._detect_segment_boundaries(image, segments, sensitivity, fragmentation)
+        
+        if progress_callback:
+            progress_callback(60, f"Found {len(boundaries)} boundary fragments, analyzing colors...")
+        
+        print(f"DEBUG: Fragmentation={fragmentation}, Total boundaries after fragmentation: {len(boundaries)}")
+        
+        # Analyze contrast for each boundary fragment
+        boundary_data = self._analyze_fragment_contrast(image, boundaries, segments, sensitivity)
+        
+        if progress_callback:
+            progress_callback(80, "Saving boundary data...")
+        
+        # Save boundary information
+        boundary_filename = f"{file_id}_boundaries_s{sensitivity}.json"
+        boundary_path = os.path.join(output_dir, boundary_filename)
+        
+        boundary_info = {
+            'sensitivity': sensitivity,
+            'total_boundaries': len(boundary_data),
+            'boundaries': boundary_data
+        }
+        
+        with open(boundary_path, 'w') as f:
+            json.dump(boundary_info, f, indent=2)
+        
+        if progress_callback:
+            progress_callback(100, f"Found {len(boundary_data)} contrast boundaries!")
+        
+        return boundary_data
+    
+    def _convert_mask_to_segments(self, segment_mask):
+        """
+        Convert segment mask to list of segments with coordinates
+        
+        Args:
+            segment_mask: 2D array with segment IDs
+            
+        Returns:
+            List of segments with coordinates
+        """
+        segments = []
+        unique_ids = np.unique(segment_mask)
+        
+        for segment_id in unique_ids:
+            if segment_id == 0:  # Skip background
+                continue
+                
+            # Find all coordinates for this segment
+            y_coords, x_coords = np.where(segment_mask == segment_id)
+            coordinates = [(int(y), int(x)) for y, x in zip(y_coords, x_coords)]
+            
+            if len(coordinates) > 10:  # Minimum segment size
+                segments.append({
+                    'id': int(segment_id),
+                    'coordinates': coordinates,
+                    'pixel_count': len(coordinates)
+                })
+        
+        return segments
+    
+    def _detect_segment_boundaries(self, image, segments, sensitivity, fragmentation):
+        """
+        Detect boundaries between image segments with adjustable sensitivity and fragmentation
+        
+        Args:
+            image: Input image (RGB format)
+            segments: List of image segments from segmentation
+            sensitivity: Detection sensitivity (1-100, higher = detect weaker boundaries)
+            fragmentation: Fragmentation level (1-100, higher = more fragments)
+            
+        Returns:
+            List of boundary contours
+        """
+        height, width = image.shape[:2]
+        
+        # Create segment mask for each segment
+        segment_masks = {}
+        for i, segment in enumerate(segments):
+            mask = np.zeros((height, width), dtype=np.uint8)
+            for y, x in segment['coordinates']:
+                if 0 <= y < height and 0 <= x < width:
+                    mask[y, x] = 255
+            segment_masks[i] = mask
+        
+        boundaries = []
+        boundary_id_counter = 0  # Global counter for unique boundary IDs
+        original_boundaries_count = 0  # Track original boundaries before fragmentation
+        
+        print(f"DEBUG: Starting boundary detection with fragmentation={fragmentation}")
+        
+        # Find boundaries between adjacent segments
+        for i, segment_i in enumerate(segments):
+            # Find contours of current segment
+            contours_i, _ = cv2.findContours(segment_masks[i], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours_i:
+                contour_length = cv2.arcLength(contour, False)
+                
+                # Filter by minimum length based on sensitivity
+                min_length = max(15, int(40 * (1 - sensitivity / 100.0)))  # Lower min for high sensitivity
+                if contour_length < min_length:
+                    continue
+                
+                # Smooth contour based on sensitivity
+                # Keep contours detailed regardless of sensitivity - sensitivity should only affect contrast filtering
+                # Use minimal smoothing to preserve detail
+                smoothing_factor = 0.002  # Very minimal smoothing for all sensitivity levels
+                epsilon = smoothing_factor * contour_length
+                smoothed = cv2.approxPolyDP(contour, epsilon, False)
+                
+                # Count original boundary before fragmentation
+                original_boundaries_count += 1
+                
+                # Fragment boundaries based on fragmentation parameter (1-6 fragments)
+                # ALWAYS fragment ALL boundaries regardless of length
+                if fragmentation > 1:
+                    # Split boundary into specified number of fragments
+                    fragments = self._fragment_boundary_into_pieces(smoothed, fragmentation)
+                    print(f"DEBUG: Original boundary {original_boundaries_count} fragmented into {len(fragments)} pieces")
+                    # Assign unique IDs to each fragment
+                    for fragment in fragments:
+                        fragment_with_id = (fragment, boundary_id_counter)
+                        boundaries.append(fragment_with_id)
+                        boundary_id_counter += 1
+                else:
+                    # Single boundary gets one ID (fragmentation = 1)
+                    boundary_with_id = (smoothed, boundary_id_counter)
+                    boundaries.append(boundary_with_id)
+                    boundary_id_counter += 1
+        
+        print(f"DEBUG: Fragmentation complete. Original boundaries: {original_boundaries_count}, Final fragments: {len(boundaries)}")
+        print(f"DEBUG: Expected fragments with fragmentation {fragmentation}: {original_boundaries_count * fragmentation}")
+        
+        return boundaries
+    
+    def _fragment_boundary_into_pieces(self, contour, num_fragments):
+        """
+        Split a boundary contour into exactly num_fragments pieces based on arc length
+        
+        Args:
+            contour: OpenCV contour to fragment
+            num_fragments: Number of fragments to create (2-6)
+            
+        Returns:
+            List of contour fragments
+        """
+        if num_fragments <= 1:
+            return [contour]
+            
+        # Convert contour to simple point list
+        contour_points = []
+        for point in contour:
+            contour_points.append([int(point[0][0]), int(point[0][1])])
+        
+        if len(contour_points) < 2:
+            return [contour]
+        
+        # Calculate cumulative distances along the contour
+        cumulative_distances = [0.0]
+        total_length = 0.0
+        
+        for i in range(1, len(contour_points)):
+            p1 = contour_points[i-1]
+            p2 = contour_points[i]
+            distance = np.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2)
+            total_length += distance
+            cumulative_distances.append(total_length)
+        
+        if total_length == 0:
+            return [contour]
+        
+        # Calculate fragment boundaries based on equal arc length
+        fragment_length = total_length / num_fragments
+        fragments = []
+        
+        for i in range(num_fragments):
+            start_distance = i * fragment_length
+            end_distance = (i + 1) * fragment_length if i < num_fragments - 1 else total_length
+            
+            # Find start and end indices
+            start_idx = 0
+            end_idx = len(contour_points) - 1
+            
+            # Find start index
+            for j in range(len(cumulative_distances)):
+                if cumulative_distances[j] >= start_distance:
+                    start_idx = j
+                    break
+            
+            # Find end index
+            for j in range(start_idx, len(cumulative_distances)):
+                if cumulative_distances[j] >= end_distance:
+                    end_idx = j
+                    break
+            
+            # Ensure we have at least 2 points per fragment
+            if end_idx <= start_idx:
+                end_idx = min(start_idx + 1, len(contour_points) - 1)
+            
+            # Extract fragment points
+            fragment_points = contour_points[start_idx:end_idx + 1]
+            
+            if len(fragment_points) >= 2:
+                # Convert back to OpenCV contour format
+                fragment_contour = np.array(fragment_points).reshape(-1, 1, 2).astype(np.int32)
+                fragments.append(fragment_contour)
+        
+        return fragments if fragments else [contour]
+    
+    
+    def _analyze_fragment_contrast(self, image, boundaries, segments, sensitivity):
+        """
+        Analyze contrast for each boundary fragment based on local background/object colors
+        
+        Args:
+            image: Input image (RGB format)
+            boundaries: List of (contour, boundary_id) tuples
+            segments: List of image segments
+            sensitivity: Detection sensitivity
+            
+        Returns:
+            List of boundary data with individual contrast values
+        """
+        boundary_data = []
+        
+        for contour, boundary_id in boundaries:
+            # Convert contour to list of points
+            contour_points = []
+            for point in contour:
+                x, y = int(point[0][0]), int(point[0][1])
+                if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:
+                    contour_points.append([x, y])
+            
+            if len(contour_points) < 3:
+                continue
+            
+            # Sample points along the boundary for color analysis
+            sample_indices = np.linspace(0, len(contour_points) - 1, min(20, len(contour_points)), dtype=int)
+            sampled_points = [contour_points[i] for i in sample_indices]
+            
+            # Analyze colors on both sides of the boundary
+            left_colors = []
+            right_colors = []
+            
+            for i in range(len(sampled_points) - 1):
+                p1 = sampled_points[i]
+                p2 = sampled_points[i + 1]
+                
+                # Calculate perpendicular direction for sampling
+                dx = p2[0] - p1[0]
+                dy = p2[1] - p1[1]
+                length = np.sqrt(dx*dx + dy*dy)
+                
+                if length > 0:
+                    # Normalize and get perpendicular
+                    nx = -dy / length  # perpendicular x
+                    ny = dx / length   # perpendicular y
+                    
+                    # Sample colors on both sides
+                    offset = 3  # pixels to offset from boundary
+                    
+                    # Left side
+                    left_x = int(p1[0] + nx * offset)
+                    left_y = int(p1[1] + ny * offset)
+                    if 0 <= left_x < image.shape[1] and 0 <= left_y < image.shape[0]:
+                        left_colors.append(image[left_y, left_x])
+                    
+                    # Right side
+                    right_x = int(p1[0] - nx * offset)
+                    right_y = int(p1[1] - ny * offset)
+                    if 0 <= right_x < image.shape[1] and 0 <= right_y < image.shape[0]:
+                        right_colors.append(image[right_y, right_x])
+            
+            if not left_colors or not right_colors:
+                continue
+            
+            # Calculate average colors on each side
+            left_avg = np.mean(left_colors, axis=0)
+            right_avg = np.mean(right_colors, axis=0)
+            
+            # Calculate local contrast ratio
+            left_brightness = np.mean(left_avg)
+            right_brightness = np.mean(right_avg)
+            contrast_ratio = abs(left_brightness - right_brightness) / 255.0
+            
+            # Filter by contrast threshold based on sensitivity
+            if sensitivity >= 80:
+                min_contrast = 0.02  # Very low threshold - detect very subtle boundaries
+            elif sensitivity >= 60:
+                min_contrast = 0.05  # Low threshold - detect weak boundaries
+            elif sensitivity >= 40:
+                min_contrast = 0.1   # Medium threshold - moderate boundaries
+            elif sensitivity >= 20:
+                min_contrast = 0.2   # Higher threshold - stronger boundaries
+            else:
+                min_contrast = 0.4   # High threshold - only very strong boundaries
+            
+            if contrast_ratio >= min_contrast:
+                # Determine brightest and darkest colors
+                if left_brightness > right_brightness:
+                    brightest_color = left_avg
+                    darkest_color = right_avg
+                else:
+                    brightest_color = right_avg
+                    darkest_color = left_avg
+                
+                # Calculate contour length
+                contour_length = cv2.arcLength(contour, False)
+                
+                boundary_data.append({
+                    'id': boundary_id,  # Use the unique boundary ID
+                    'contour_points': contour_points,
+                    'brightest_color': {
+                        'r': int(brightest_color[0]),
+                        'g': int(brightest_color[1]),
+                        'b': int(brightest_color[2]),
+                        'hex': f"#{int(brightest_color[0]):02x}{int(brightest_color[1]):02x}{int(brightest_color[2]):02x}"
+                    },
+                    'darkest_color': {
+                        'r': int(darkest_color[0]),
+                        'g': int(darkest_color[1]),
+                        'b': int(darkest_color[2]),
+                        'hex': f"#{int(darkest_color[0]):02x}{int(darkest_color[1]):02x}{int(darkest_color[2]):02x}"
+                    },
+                    'contrast_ratio': float(contrast_ratio),
+                    'length': float(contour_length),
+                    'point_count': len(contour_points),
+                    'left_avg_color': {
+                        'r': int(left_avg[0]),
+                        'g': int(left_avg[1]),
+                        'b': int(left_avg[2])
+                    },
+                    'right_avg_color': {
+                        'r': int(right_avg[0]),
+                        'g': int(right_avg[1]),
+                        'b': int(right_avg[2])
+                    }
+                })
+        
+        # Sort boundaries by contrast ratio (highest first)
+        boundary_data.sort(key=lambda x: x['contrast_ratio'], reverse=True)
+        
+        # With fragmentation, we want to keep ALL fragments that pass contrast filtering
+        # Don't limit the number of boundaries when fragmentation is used
+        print(f"DEBUG: _analyze_fragment_contrast processed {len(boundary_data)} boundaries after contrast filtering")
+        
+        return boundary_data
+    
+    def _detect_image_boundaries(self, image, sensitivity):
+        """
+        Detect boundaries using edge detection algorithms with improved sensitivity for multiple boundaries
+        
+        Args:
+            image: Input RGB image
+            sensitivity: Sensitivity parameter (1-100)
+            
+        Returns:
+            List of boundary contours
+        """
+        # Convert to grayscale for edge detection
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        
+        # Apply Gaussian blur to reduce noise - less blur for higher sensitivity to preserve detail
+        if sensitivity >= 80:
+            blur_size = 1  # Minimal blur for very high sensitivity - preserve fine details
+        elif sensitivity >= 60:
+            blur_size = 3  # Light blur for high sensitivity
+        elif sensitivity >= 40:
+            blur_size = 5  # Medium blur for medium sensitivity
+        else:
+            blur_size = 7  # More blur for low sensitivity - remove noise
+        
+        blurred = cv2.GaussianBlur(gray, (blur_size, blur_size), 0)
+        
+        # Calculate Canny thresholds based on sensitivity
+        # Higher sensitivity = lower thresholds = detect weaker/subtle boundaries
+        if sensitivity >= 80:
+            # Very high sensitivity - detect even very weak boundaries
+            low_threshold = max(5, 15 - int((sensitivity - 80) / 4))
+            high_threshold = max(10, 30 - int((sensitivity - 80) / 2))
+        elif sensitivity >= 60:
+            # High sensitivity - detect weak boundaries
+            low_threshold = max(10, 25 - int((sensitivity - 60) / 4))
+            high_threshold = max(20, 50 - int((sensitivity - 60) / 2))
+        elif sensitivity >= 40:
+            # Medium sensitivity - balanced detection
+            low_threshold = max(20, 40 - int((sensitivity - 40) / 2))
+            high_threshold = max(40, 80 - (sensitivity - 40))
+        else:
+            # Low sensitivity - only strong boundaries
+            low_threshold = max(30, 60 - sensitivity / 2)
+            high_threshold = max(60, 120 - sensitivity)
+        
+        # Apply Canny edge detection
+        edges = cv2.Canny(blurred, low_threshold, high_threshold)
+        
+        # Apply morphological operations to connect nearby edges
+        # Smaller kernel for higher sensitivity to preserve more boundaries
+        kernel_size = 3 if sensitivity >= 60 else 5
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+        
+        # Find contours (boundaries) - use RETR_LIST to get more boundaries
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Filter and smooth contours based on sensitivity
+        # Higher sensitivity = accept shorter boundaries (find more detail)
+        min_contour_length = max(10, 50 - int(sensitivity / 2))  # Shorter boundaries for higher sensitivity
+        max_boundaries = min(50, max(5, int(sensitivity / 2)))  # More boundaries for higher sensitivity
+        
+        filtered_contours = []
+        
+        for contour in contours:
+            contour_length = cv2.arcLength(contour, False)
+            if contour_length >= min_contour_length:
+                # Smooth the contour to reduce jagged polyline appearance
+                # Higher sensitivity = less smoothing to preserve detail
+                epsilon = 0.005 * contour_length  # Base approximation accuracy
+                if sensitivity >= 70:
+                    epsilon *= 0.3  # Much less smoothing for high sensitivity - preserve detail
+                elif sensitivity >= 50:
+                    epsilon *= 0.6  # Less smoothing for medium-high sensitivity
+                elif sensitivity <= 30:
+                    epsilon *= 1.5  # More smoothing for low sensitivity
+                
+                # Apply Douglas-Peucker algorithm to smooth the contour
+                smoothed_contour = cv2.approxPolyDP(contour, epsilon, False)
+                
+                # Only keep contours with reasonable number of points after smoothing
+                if len(smoothed_contour) >= 3:
+                    # Split long boundaries into fragments for easier individual drawing
+                    fragments = self._split_boundary_into_fragments(smoothed_contour, contour_length)
+                    filtered_contours.extend(fragments)
+        
+        # Sort by contour length (longest first) and limit number of boundaries
+        filtered_contours.sort(key=lambda c: cv2.arcLength(c, False), reverse=True)
+        return filtered_contours[:max_boundaries]
+    
+    def _split_boundary_into_fragments(self, contour, contour_length):
+        """
+        Split long boundaries into smaller fragments for easier individual drawing
+        
+        Args:
+            contour: OpenCV contour points
+            contour_length: Length of the contour
+            
+        Returns:
+            List of contour fragments
+        """
+        # Define maximum fragment length based on contour length
+        if contour_length > 1000:
+            max_fragment_length = 300  # Split very long boundaries into ~300px fragments
+        elif contour_length > 500:
+            max_fragment_length = 200  # Split long boundaries into ~200px fragments
+        else:
+            return [contour]  # Keep shorter boundaries as single fragments
+        
+        fragments = []
+        contour_points = contour.reshape(-1, 2)  # Convert to (N, 2) array
+        
+        if len(contour_points) < 4:
+            return [contour]  # Too few points to split
+        
+        # Calculate cumulative distances along the contour
+        distances = [0]
+        for i in range(1, len(contour_points)):
+            dist = np.linalg.norm(contour_points[i] - contour_points[i-1])
+            distances.append(distances[-1] + dist)
+        
+        total_length = distances[-1]
+        if total_length <= max_fragment_length:
+            return [contour]  # No need to split
+        
+        # Calculate split points
+        num_fragments = int(np.ceil(total_length / max_fragment_length))
+        fragment_length = total_length / num_fragments
+        
+        current_fragment_start = 0
+        
+        for fragment_idx in range(num_fragments):
+            # Find start and end points for this fragment
+            start_distance = fragment_idx * fragment_length
+            end_distance = min((fragment_idx + 1) * fragment_length, total_length)
+            
+            # Find indices corresponding to these distances
+            start_idx = current_fragment_start
+            end_idx = len(contour_points) - 1
+            
+            # Find the end index for this fragment
+            for i in range(current_fragment_start, len(distances)):
+                if distances[i] >= end_distance:
+                    end_idx = i
+                    break
+            
+            # Ensure we have at least 3 points for a valid fragment
+            if end_idx - start_idx >= 2:
+                fragment_points = contour_points[start_idx:end_idx + 1]
+                
+                # Add some overlap between fragments for continuity (except for the last fragment)
+                if fragment_idx < num_fragments - 1 and end_idx < len(contour_points) - 1:
+                    # Add 1-2 extra points for overlap
+                    overlap_end = min(end_idx + 2, len(contour_points))
+                    fragment_points = contour_points[start_idx:overlap_end]
+                
+                # Convert back to OpenCV contour format
+                fragment_contour = fragment_points.reshape(-1, 1, 2).astype(np.int32)
+                fragments.append(fragment_contour)
+                
+                # Update start for next fragment (with some overlap)
+                current_fragment_start = max(start_idx, end_idx - 1)
+            
+        return fragments if fragments else [contour]
+    
+    
+    def draw_single_boundary(self, output_dir, file_id, boundary_id, color_type='brightest', sensitivity=50):
+        """
+        Draw a single boundary line using the specified color
+        
+        Args:
+            output_dir: Directory containing boundary data
+            file_id: File identifier
+            boundary_id: ID of the boundary to draw
+            color_type: 'brightest' or 'darkest' color to use
+            sensitivity: Sensitivity parameter used for boundary detection
+            
+        Returns:
+            Stroke data for frontend rendering
+        """
+        # Load boundary data
+        boundary_filename = f"{file_id}_boundaries_s{sensitivity}.json"
+        boundary_path = os.path.join(output_dir, boundary_filename)
+        
+        if not os.path.exists(boundary_path):
+            raise Exception(f"Boundary data not found: {boundary_filename}")
+        
+        with open(boundary_path, 'r') as f:
+            boundary_info = json.load(f)
+        
+        # Find the target boundary
+        target_boundary = None
+        for boundary in boundary_info['boundaries']:
+            if boundary['id'] == boundary_id:
+                target_boundary = boundary
+                break
+        
+        if not target_boundary:
+            raise Exception(f"Boundary {boundary_id} not found")
+        
+        # Select color based on type
+        if color_type == 'brightest':
+            color_data = target_boundary['brightest_color']
+        else:  # darkest
+            color_data = target_boundary['darkest_color']
+        
+        # Create stroke data
+        stroke_points = []
+        for x, y in target_boundary['contour_points']:
+            stroke_points.append({'x': float(x), 'y': float(y)})
+        
+        # Calculate appropriate line width based on boundary length
+        base_width = max(1, min(4, int(target_boundary['length'] / 100)))
+        
+        stroke_data = {
+            'color': f"rgb({color_data['r']}, {color_data['g']}, {color_data['b']})",
+            'width': base_width,
+            'points': stroke_points,
+            'type': 'boundary_line',
+            'boundary_id': boundary_id,
+            'color_type': color_type,
+            'contrast_ratio': target_boundary['contrast_ratio']
+        }
+        
+        return [stroke_data]  # Return as list for consistency with other stroke methods
+
+    def highlight_contrast_boundaries(self, output_dir, file_id, sensitivity=50):
+        """
+        Highlight boundaries using contrast-based sorting and dynamic line thickness
+        1. Sort fragments by contrast and draw only the most contrasted half
+        2. Draw with dominant color (enhanced dark or light)
+        3. Variable thickness based on contrast (1-5px)
+        4. Tapering thickness from center to edges
+        
+        Args:
+            output_dir: Directory containing boundary data
+            file_id: File identifier
+            sensitivity: Sensitivity parameter used for boundary detection
+            
+        Returns:
+            List of stroke data for frontend rendering
+        """
+        # Load boundary data
+        boundary_filename = f"{file_id}_boundaries_s{sensitivity}.json"
+        boundary_path = os.path.join(output_dir, boundary_filename)
+        
+        if not os.path.exists(boundary_path):
+            raise Exception(f"Boundary data not found: {boundary_filename}")
+        
+        with open(boundary_path, 'r') as f:
+            boundary_info = json.load(f)
+        
+        boundaries = boundary_info['boundaries']
+        
+        # Sort boundaries by contrast (descending order)
+        sorted_boundaries = sorted(boundaries, 
+                                 key=lambda x: x['contrast_ratio'], reverse=True)
+        
+        # Take only the most contrasted half
+        half_count = max(1, len(sorted_boundaries) // 2)
+        top_contrast_boundaries = sorted_boundaries[:half_count]
+        
+        print(f"Drawing {half_count} most contrasted boundaries out of {len(sorted_boundaries)} total")
+        
+        stroke_data_list = []
+        
+        for boundary in top_contrast_boundaries:
+            # Get boundary data
+            contrast = boundary['contrast_ratio']
+            brightest_color = boundary['brightest_color']
+            darkest_color = boundary['darkest_color']
+            
+            # Determine dominant color (dark vs light)
+            dominant_color = self._get_dominant_color(brightest_color, darkest_color)
+            
+            # Calculate line thickness based on contrast (1-5px)
+            # Use more aggressive scaling and proper rounding
+            thickness_scale = contrast * 8  # Scale contrast more aggressively (0-8 instead of 0-4)
+            max_thickness = max(1, min(5, round(1 + thickness_scale)))  # Round instead of int()
+            
+            # Debug: print thickness calculation
+            print(f"Boundary {boundary['id']}: contrast={contrast:.3f}, max_thickness={max_thickness}")
+            
+            # Create tapered stroke points with variable thickness
+            stroke_points = self._create_tapered_stroke_points(
+                boundary['contour_points'], max_thickness)
+            
+            stroke_data = {
+                'color': f"rgb({dominant_color['r']}, {dominant_color['g']}, {dominant_color['b']})",
+                'width': max_thickness,
+                'points': stroke_points,
+                'type': 'highlight_boundary',
+                'boundary_id': boundary['id'],
+                'contrast_ratio': contrast,
+                'tapered': True
+            }
+            
+            stroke_data_list.append(stroke_data)
+        
+        return stroke_data_list
+    
+    def _get_dominant_color(self, brightest_color, darkest_color):
+        """
+        Determine dominant color and enhance it
+        If dark is closer to black than light to white, use dark, otherwise light
+        """
+        # Calculate distances to black and white
+        bright_avg = (brightest_color['r'] + brightest_color['g'] + brightest_color['b']) / 3
+        dark_avg = (darkest_color['r'] + darkest_color['g'] + darkest_color['b']) / 3
+        
+        # Distance from extremes
+        bright_to_white = 255 - bright_avg  # Distance to white
+        dark_to_black = dark_avg  # Distance to black
+        
+        # Choose the color that's closer to its extreme
+        if dark_to_black < bright_to_white:
+            # Dark color is closer to black than bright to white
+            base_color = darkest_color
+            is_dark = True
+        else:
+            # Bright color is closer to white than dark to black
+            base_color = brightest_color
+            is_dark = False
+        
+        # Enhance the color (make it more extreme)
+        enhanced_color = {}
+        for channel in ['r', 'g', 'b']:
+            value = base_color[channel]
+            if is_dark:  # Make darker
+                enhanced_color[channel] = max(0, int(value * 0.7))
+            else:  # Make lighter
+                enhanced_color[channel] = min(255, int(value * 1.3))
+        
+        return enhanced_color
+    
+    def _create_tapered_stroke_points(self, contour_points, max_thickness):
+        """
+        Create stroke points with variable thickness that tapers from center to edges
+        """
+        stroke_points = []
+        num_points = len(contour_points)
+        
+        if num_points < 2:
+            return stroke_points
+        
+        for i, (x, y) in enumerate(contour_points):
+            # Calculate thickness for this point
+            # Thickness starts at 1, grows to max at center, then back to 1
+            progress = i / (num_points - 1) if num_points > 1 else 0
+            
+            # Create a bell curve for thickness
+            if progress <= 0.5:
+                # Growing phase (0 to 0.5)
+                thickness_factor = progress * 2  # 0 to 1
+            else:
+                # Shrinking phase (0.5 to 1)
+                thickness_factor = (1 - progress) * 2  # 1 to 0
+            
+            # Calculate actual thickness (1 to max_thickness)
+            # Use round() instead of int() for better thickness distribution
+            thickness = max(1, round(1 + thickness_factor * (max_thickness - 1)))
+            
+            # Debug: print thickness for first few points
+            if i < 3:
+                print(f"  Point {i}: progress={progress:.2f}, thickness_factor={thickness_factor:.2f}, thickness={thickness}")
+            
+            stroke_points.append({
+                'x': float(x), 
+                'y': float(y),
+                'thickness': thickness
+            })
+        
+        return stroke_points

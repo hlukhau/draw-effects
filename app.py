@@ -237,5 +237,186 @@ def draw_segment():
         print(f"Error in draw_segment: {str(e)}")  # Add logging
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/detect_boundaries', methods=['POST'])
+def detect_boundaries():
+    """Detect contrast boundaries in an uploaded image"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        sensitivity = data.get('sensitivity', 50)  # Default sensitivity
+        fragmentation = data.get('fragmentation', 50)  # Default fragmentation
+        
+        print(f"DEBUG: API received fragmentation={fragmentation}, type={type(fragmentation)}")
+        
+        if not file_id:
+            return jsonify({'error': 'No file ID provided'}), 400
+        
+        # Find the uploaded file
+        uploaded_file = None
+        for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+            if filename.startswith(file_id):
+                uploaded_file = filename
+                break
+        
+        if not uploaded_file:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Initialize processing status
+        processing_status[file_id + '_boundaries'] = {
+            'status': 'processing',
+            'progress': 0,
+            'message': 'Starting boundary detection...'
+        }
+        
+        # Start boundary detection in background thread
+        thread = threading.Thread(
+            target=detect_boundaries_background,
+            args=(file_id, uploaded_file, sensitivity, fragmentation)
+        )
+        thread.start()
+        
+        return jsonify({'success': True, 'file_id': file_id, 'mode': 'boundaries'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def detect_boundaries_background(file_id, filename, sensitivity, fragmentation):
+    """Background task for boundary detection"""
+    try:
+        input_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Create drawing effect generator
+        generator = DrawingEffectGenerator()
+        
+        # Update status callback
+        def update_status(progress, message):
+            processing_status[file_id + '_boundaries'] = {
+                'status': 'processing',
+                'progress': progress,
+                'message': message
+            }
+        
+        # Detect boundaries
+        boundary_data = generator.detect_contrast_boundaries(
+            input_path,
+            app.config['OUTPUT_FOLDER'],
+            file_id,
+            sensitivity=sensitivity,
+            fragmentation=fragmentation,
+            progress_callback=update_status
+        )
+        
+        processing_status[file_id + '_boundaries'] = {
+            'status': 'completed',
+            'progress': 100,
+            'message': f'Found {len(boundary_data)} boundaries!',
+            'boundary_data': boundary_data,
+            'sensitivity': sensitivity,
+            'fragmentation': fragmentation,
+            'mode': 'boundaries'
+        }
+        
+        print(f"DEBUG: Saved {len(boundary_data)} boundaries to processing_status with fragmentation={fragmentation}")
+        
+    except Exception as e:
+        processing_status[file_id + '_boundaries'] = {
+            'status': 'error',
+            'progress': 0,
+            'message': f'Error: {str(e)}'
+        }
+
+@app.route('/boundaries/<file_id>')
+def get_boundaries(file_id):
+    """Get detected boundaries for a file"""
+    print(f"DEBUG: get_boundaries called for file_id={file_id}")
+    print(f"DEBUG: processing_status keys: {list(processing_status.keys())}")
+    
+    status = processing_status.get(file_id + '_boundaries', {'status': 'not_found'})
+    print(f"DEBUG: status for {file_id + '_boundaries'}: {status.get('status', 'unknown')}")
+    
+    if status.get('mode') == 'boundaries' and status.get('status') == 'completed':
+        boundary_data = status.get('boundary_data', [])
+        print(f"DEBUG: API returning {len(boundary_data)} boundaries for file_id={file_id}")
+        print(f"DEBUG: First few boundary IDs: {[b.get('id') for b in boundary_data[:5]] if boundary_data else 'None'}")
+        return jsonify({
+            'boundary_data': boundary_data,
+            'total_boundaries': len(boundary_data),
+            'sensitivity': status.get('sensitivity', 50),
+            'fragmentation': status.get('fragmentation', 1),
+            'status': 'completed'
+        })
+    else:
+        print(f"DEBUG: Boundaries not available for file_id={file_id}, status={status.get('status', 'unknown')}")
+        return jsonify({'error': 'Boundaries not available', 'status': status.get('status', 'unknown')}), 404
+
+@app.route('/draw_boundary', methods=['POST'])
+def draw_boundary():
+    """Draw a single boundary line"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        boundary_id = data.get('boundary_id')
+        color_type = data.get('color_type', 'brightest')  # 'brightest' or 'darkest'
+        sensitivity = data.get('sensitivity', 50)
+        
+        if not file_id or boundary_id is None:
+            return jsonify({'success': False, 'error': 'Missing file_id or boundary_id'})
+        
+        # Generate boundary stroke
+        generator = DrawingEffectGenerator()
+        boundary_strokes = generator.draw_single_boundary(
+            output_dir=app.config['OUTPUT_FOLDER'],
+            file_id=file_id,
+            boundary_id=boundary_id,
+            color_type=color_type,
+            sensitivity=sensitivity
+        )
+        
+        return jsonify({
+            'success': True,
+            'boundary_strokes': boundary_strokes,
+            'boundary_id': boundary_id,
+            'color_type': color_type
+        })
+        
+    except Exception as e:
+        print(f"Error in draw_boundary: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/highlight_boundaries', methods=['POST'])
+def highlight_boundaries():
+    """Highlight boundaries using contrast-based sorting and dynamic line thickness"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        sensitivity = data.get('sensitivity', 50)
+        
+        if not file_id:
+            return jsonify({'success': False, 'error': 'Missing file_id'})
+        
+        # Generate highlight boundary strokes
+        generator = DrawingEffectGenerator()
+        highlight_strokes = generator.highlight_contrast_boundaries(
+            output_dir=app.config['OUTPUT_FOLDER'],
+            file_id=file_id,
+            sensitivity=sensitivity
+        )
+        
+        return jsonify({
+            'success': True,
+            'highlight_strokes': highlight_strokes,
+            'total_boundaries': len(highlight_strokes)
+        })
+        
+    except Exception as e:
+        print(f"Error in highlight_boundaries: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/boundary_status/<file_id>')
+def get_boundary_status(file_id):
+    """Get boundary detection status"""
+    status = processing_status.get(file_id + '_boundaries', {'status': 'not_found'})
+    return jsonify(status)
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002)
