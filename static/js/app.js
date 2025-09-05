@@ -600,6 +600,12 @@ function showSegmentationResults(fileId) {
                                     <button id="drawAllBtn" class="btn btn-warning btn-sm mr-2">
                                         <i class="fas fa-palette"></i> Draw All
                                     </button>
+                                    <button id="drawLargeBtn" class="btn btn-success btn-sm mr-2">
+                                        <i class="fas fa-expand"></i> Large Fragments
+                                    </button>
+                                    <button id="drawMediumBtn" class="btn btn-primary btn-sm mr-2">
+                                        <i class="fas fa-circle"></i> Medium Fragments
+                                    </button>
                                     <button id="drawSmallBtn" class="btn btn-info btn-sm mr-2">
                                         <i class="fas fa-brush"></i> Small Fragments
                                     </button>
