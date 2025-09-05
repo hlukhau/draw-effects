@@ -1,0 +1,3976 @@
+{
+  "threshold": 30,
+  "total_segments": 397,
+  "segments": [
+    {
+      "id": 1,
+      "pixel_count": 53659,
+      "average_color": {
+        "r": 41,
+        "g": 40,
+        "b": 32
+      },
+      "average_color_hex": "#292820"
+    },
+    {
+      "id": 2,
+      "pixel_count": 117174,
+      "average_color": {
+        "r": 71,
+        "g": 64,
+        "b": 50
+      },
+      "average_color_hex": "#474032"
+    },
+    {
+      "id": 3,
+      "pixel_count": 32948,
+      "average_color": {
+        "r": 160,
+        "g": 146,
+        "b": 121
+      },
+      "average_color_hex": "#a09279"
+    },
+    {
+      "id": 4,
+      "pixel_count": 4479,
+      "average_color": {
+        "r": 206,
+        "g": 193,
+        "b": 165
+      },
+      "average_color_hex": "#cec1a5"
+    },
+    {
+      "id": 5,
+      "pixel_count": 1060,
+      "average_color": {
+        "r": 235,
+        "g": 233,
+        "b": 226
+      },
+      "average_color_hex": "#ebe9e2"
+    },
+    {
+      "id": 6,
+      "pixel_count": 51,
+      "average_color": {
+        "r": 206,
+        "g": 204,
+        "b": 192
+      },
+      "average_color_hex": "#ceccc0"
+    },
+    {
+      "id": 7,
+      "pixel_count": 802,
+      "average_color": {
+        "r": 204,
+        "g": 197,
+        "b": 176
+      },
+      "average_color_hex": "#ccc5b0"
+    },
+    {
+      "id": 8,
+      "pixel_count": 407,
+      "average_color": {
+        "r": 110,
+        "g": 98,
+        "b": 82
+      },
+      "average_color_hex": "#6e6252"
+    },
+    {
+      "id": 9,
+      "pixel_count": 154,
+      "average_color": {
+        "r": 192,
+        "g": 192,
+        "b": 181
+      },
+      "average_color_hex": "#c0c0b5"
+    },
+    {
+      "id": 10,
+      "pixel_count": 970,
+      "average_color": {
+        "r": 197,
+        "g": 195,
+        "b": 185
+      },
+      "average_color_hex": "#c5c3b9"
+    },
+    {
+      "id": 11,
+      "pixel_count": 68,
+      "average_color": {
+        "r": 110,
+        "g": 105,
+        "b": 68
+      },
+      "average_color_hex": "#6e6944"
+    },
+    {
+      "id": 12,
+      "pixel_count": 485,
+      "average_color": {
+        "r": 196,
+        "g": 187,
+        "b": 157
+      },
+      "average_color_hex": "#c4bb9d"
+    },
+    {
+      "id": 13,
+      "pixel_count": 878,
+      "average_color": {
+        "r": 113,
+        "g": 105,
+        "b": 76
+      },
+      "average_color_hex": "#71694c"
+    },
+    {
+      "id": 14,
+      "pixel_count": 172,
+      "average_color": {
+        "r": 64,
+        "g": 64,
+        "b": 42
+      },
+      "average_color_hex": "#40402a"
+    },
+    {
+      "id": 15,
+      "pixel_count": 772,
+      "average_color": {
+        "r": 94,
+        "g": 97,
+        "b": 86
+      },
+      "average_color_hex": "#5e6156"
+    },
+    {
+      "id": 16,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 70,
+        "g": 64,
+        "b": 53
+      },
+      "average_color_hex": "#464035"
+    },
+    {
+      "id": 17,
+      "pixel_count": 61,
+      "average_color": {
+        "r": 84,
+        "g": 86,
+        "b": 80
+      },
+      "average_color_hex": "#545650"
+    },
+    {
+      "id": 18,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 210,
+        "g": 203,
+        "b": 167
+      },
+      "average_color_hex": "#d2cba7"
+    },
+    {
+      "id": 19,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 59,
+        "g": 53,
+        "b": 39
+      },
+      "average_color_hex": "#3b3527"
+    },
+    {
+      "id": 20,
+      "pixel_count": 174,
+      "average_color": {
+        "r": 87,
+        "g": 82,
+        "b": 72
+      },
+      "average_color_hex": "#575248"
+    },
+    {
+      "id": 21,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 90,
+        "g": 88,
+        "b": 70
+      },
+      "average_color_hex": "#5a5846"
+    },
+    {
+      "id": 22,
+      "pixel_count": 409,
+      "average_color": {
+        "r": 185,
+        "g": 178,
+        "b": 133
+      },
+      "average_color_hex": "#b9b285"
+    },
+    {
+      "id": 23,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 141,
+        "g": 132,
+        "b": 87
+      },
+      "average_color_hex": "#8d8457"
+    },
+    {
+      "id": 24,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 120,
+        "g": 121,
+        "b": 100
+      },
+      "average_color_hex": "#787964"
+    },
+    {
+      "id": 25,
+      "pixel_count": 122,
+      "average_color": {
+        "r": 77,
+        "g": 77,
+        "b": 70
+      },
+      "average_color_hex": "#4d4d46"
+    },
+    {
+      "id": 26,
+      "pixel_count": 252,
+      "average_color": {
+        "r": 148,
+        "g": 135,
+        "b": 109
+      },
+      "average_color_hex": "#94876d"
+    },
+    {
+      "id": 27,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 237,
+        "g": 233,
+        "b": 225
+      },
+      "average_color_hex": "#ede9e1"
+    },
+    {
+      "id": 28,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 70,
+        "g": 71,
+        "b": 67
+      },
+      "average_color_hex": "#464743"
+    },
+    {
+      "id": 29,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 241,
+        "g": 236,
+        "b": 203
+      },
+      "average_color_hex": "#f1eccb"
+    },
+    {
+      "id": 30,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 219,
+        "g": 209,
+        "b": 172
+      },
+      "average_color_hex": "#dbd1ac"
+    },
+    {
+      "id": 31,
+      "pixel_count": 44,
+      "average_color": {
+        "r": 121,
+        "g": 117,
+        "b": 80
+      },
+      "average_color_hex": "#797550"
+    },
+    {
+      "id": 32,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 72,
+        "g": 79,
+        "b": 71
+      },
+      "average_color_hex": "#484f47"
+    },
+    {
+      "id": 33,
+      "pixel_count": 37,
+      "average_color": {
+        "r": 71,
+        "g": 77,
+        "b": 72
+      },
+      "average_color_hex": "#474d48"
+    },
+    {
+      "id": 34,
+      "pixel_count": 34,
+      "average_color": {
+        "r": 212,
+        "g": 205,
+        "b": 180
+      },
+      "average_color_hex": "#d4cdb4"
+    },
+    {
+      "id": 35,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 216,
+        "g": 213,
+        "b": 202
+      },
+      "average_color_hex": "#d8d5ca"
+    },
+    {
+      "id": 36,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 218,
+        "g": 214,
+        "b": 194
+      },
+      "average_color_hex": "#dad6c2"
+    },
+    {
+      "id": 37,
+      "pixel_count": 9597,
+      "average_color": {
+        "r": 74,
+        "g": 78,
+        "b": 77
+      },
+      "average_color_hex": "#4a4e4d"
+    },
+    {
+      "id": 38,
+      "pixel_count": 57,
+      "average_color": {
+        "r": 64,
+        "g": 69,
+        "b": 71
+      },
+      "average_color_hex": "#404547"
+    },
+    {
+      "id": 39,
+      "pixel_count": 55,
+      "average_color": {
+        "r": 65,
+        "g": 74,
+        "b": 69
+      },
+      "average_color_hex": "#414a45"
+    },
+    {
+      "id": 40,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 81,
+        "g": 73,
+        "b": 70
+      },
+      "average_color_hex": "#514946"
+    },
+    {
+      "id": 41,
+      "pixel_count": 143,
+      "average_color": {
+        "r": 200,
+        "g": 185,
+        "b": 156
+      },
+      "average_color_hex": "#c8b99c"
+    },
+    {
+      "id": 42,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 85,
+        "g": 90,
+        "b": 82
+      },
+      "average_color_hex": "#555a52"
+    },
+    {
+      "id": 43,
+      "pixel_count": 174,
+      "average_color": {
+        "r": 238,
+        "g": 228,
+        "b": 211
+      },
+      "average_color_hex": "#eee4d3"
+    },
+    {
+      "id": 44,
+      "pixel_count": 53,
+      "average_color": {
+        "r": 198,
+        "g": 187,
+        "b": 150
+      },
+      "average_color_hex": "#c6bb96"
+    },
+    {
+      "id": 45,
+      "pixel_count": 83,
+      "average_color": {
+        "r": 202,
+        "g": 192,
+        "b": 148
+      },
+      "average_color_hex": "#cac094"
+    },
+    {
+      "id": 46,
+      "pixel_count": 37,
+      "average_color": {
+        "r": 203,
+        "g": 197,
+        "b": 151
+      },
+      "average_color_hex": "#cbc597"
+    },
+    {
+      "id": 47,
+      "pixel_count": 346,
+      "average_color": {
+        "r": 204,
+        "g": 198,
+        "b": 169
+      },
+      "average_color_hex": "#ccc6a9"
+    },
+    {
+      "id": 48,
+      "pixel_count": 67,
+      "average_color": {
+        "r": 79,
+        "g": 74,
+        "b": 67
+      },
+      "average_color_hex": "#4f4a43"
+    },
+    {
+      "id": 49,
+      "pixel_count": 206,
+      "average_color": {
+        "r": 198,
+        "g": 183,
+        "b": 155
+      },
+      "average_color_hex": "#c6b79b"
+    },
+    {
+      "id": 50,
+      "pixel_count": 84,
+      "average_color": {
+        "r": 166,
+        "g": 151,
+        "b": 125
+      },
+      "average_color_hex": "#a6977d"
+    },
+    {
+      "id": 51,
+      "pixel_count": 68,
+      "average_color": {
+        "r": 196,
+        "g": 190,
+        "b": 169
+      },
+      "average_color_hex": "#c4bea9"
+    },
+    {
+      "id": 52,
+      "pixel_count": 637,
+      "average_color": {
+        "r": 205,
+        "g": 198,
+        "b": 184
+      },
+      "average_color_hex": "#cdc6b8"
+    },
+    {
+      "id": 53,
+      "pixel_count": 59,
+      "average_color": {
+        "r": 194,
+        "g": 178,
+        "b": 148
+      },
+      "average_color_hex": "#c2b294"
+    },
+    {
+      "id": 54,
+      "pixel_count": 3502,
+      "average_color": {
+        "r": 197,
+        "g": 184,
+        "b": 160
+      },
+      "average_color_hex": "#c5b8a0"
+    },
+    {
+      "id": 55,
+      "pixel_count": 164,
+      "average_color": {
+        "r": 81,
+        "g": 72,
+        "b": 62
+      },
+      "average_color_hex": "#51483e"
+    },
+    {
+      "id": 56,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 200,
+        "g": 192,
+        "b": 148
+      },
+      "average_color_hex": "#c8c094"
+    },
+    {
+      "id": 57,
+      "pixel_count": 435,
+      "average_color": {
+        "r": 197,
+        "g": 189,
+        "b": 173
+      },
+      "average_color_hex": "#c5bdad"
+    },
+    {
+      "id": 58,
+      "pixel_count": 8671,
+      "average_color": {
+        "r": 192,
+        "g": 183,
+        "b": 162
+      },
+      "average_color_hex": "#c0b7a2"
+    },
+    {
+      "id": 59,
+      "pixel_count": 146,
+      "average_color": {
+        "r": 91,
+        "g": 76,
+        "b": 54
+      },
+      "average_color_hex": "#5b4c36"
+    },
+    {
+      "id": 60,
+      "pixel_count": 72,
+      "average_color": {
+        "r": 83,
+        "g": 75,
+        "b": 64
+      },
+      "average_color_hex": "#534b40"
+    },
+    {
+      "id": 61,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 194,
+        "g": 179,
+        "b": 150
+      },
+      "average_color_hex": "#c2b396"
+    },
+    {
+      "id": 62,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 135,
+        "g": 131,
+        "b": 120
+      },
+      "average_color_hex": "#878378"
+    },
+    {
+      "id": 63,
+      "pixel_count": 663,
+      "average_color": {
+        "r": 196,
+        "g": 184,
+        "b": 159
+      },
+      "average_color_hex": "#c4b89f"
+    },
+    {
+      "id": 64,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 232,
+        "g": 220,
+        "b": 202
+      },
+      "average_color_hex": "#e8dcca"
+    },
+    {
+      "id": 65,
+      "pixel_count": 43,
+      "average_color": {
+        "r": 195,
+        "g": 182,
+        "b": 158
+      },
+      "average_color_hex": "#c3b69e"
+    },
+    {
+      "id": 66,
+      "pixel_count": 33,
+      "average_color": {
+        "r": 204,
+        "g": 192,
+        "b": 144
+      },
+      "average_color_hex": "#ccc090"
+    },
+    {
+      "id": 67,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 79,
+        "g": 70,
+        "b": 54
+      },
+      "average_color_hex": "#4f4636"
+    },
+    {
+      "id": 68,
+      "pixel_count": 33,
+      "average_color": {
+        "r": 188,
+        "g": 182,
+        "b": 157
+      },
+      "average_color_hex": "#bcb69d"
+    },
+    {
+      "id": 69,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 78,
+        "g": 70,
+        "b": 56
+      },
+      "average_color_hex": "#4e4638"
+    },
+    {
+      "id": 70,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 198,
+        "g": 182,
+        "b": 154
+      },
+      "average_color_hex": "#c6b69a"
+    },
+    {
+      "id": 71,
+      "pixel_count": 42,
+      "average_color": {
+        "r": 77,
+        "g": 71,
+        "b": 59
+      },
+      "average_color_hex": "#4d473b"
+    },
+    {
+      "id": 72,
+      "pixel_count": 1994,
+      "average_color": {
+        "r": 150,
+        "g": 139,
+        "b": 127
+      },
+      "average_color_hex": "#968b7f"
+    },
+    {
+      "id": 73,
+      "pixel_count": 45,
+      "average_color": {
+        "r": 188,
+        "g": 181,
+        "b": 163
+      },
+      "average_color_hex": "#bcb5a3"
+    },
+    {
+      "id": 74,
+      "pixel_count": 98,
+      "average_color": {
+        "r": 204,
+        "g": 196,
+        "b": 164
+      },
+      "average_color_hex": "#ccc4a4"
+    },
+    {
+      "id": 75,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 95,
+        "g": 82,
+        "b": 57
+      },
+      "average_color_hex": "#5f5239"
+    },
+    {
+      "id": 76,
+      "pixel_count": 141,
+      "average_color": {
+        "r": 193,
+        "g": 177,
+        "b": 154
+      },
+      "average_color_hex": "#c1b19a"
+    },
+    {
+      "id": 77,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 196,
+        "g": 182,
+        "b": 155
+      },
+      "average_color_hex": "#c4b69b"
+    },
+    {
+      "id": 78,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 142,
+        "g": 126,
+        "b": 107
+      },
+      "average_color_hex": "#8e7e6b"
+    },
+    {
+      "id": 79,
+      "pixel_count": 230,
+      "average_color": {
+        "r": 193,
+        "g": 179,
+        "b": 153
+      },
+      "average_color_hex": "#c1b399"
+    },
+    {
+      "id": 80,
+      "pixel_count": 31,
+      "average_color": {
+        "r": 189,
+        "g": 182,
+        "b": 165
+      },
+      "average_color_hex": "#bdb6a5"
+    },
+    {
+      "id": 81,
+      "pixel_count": 255,
+      "average_color": {
+        "r": 194,
+        "g": 187,
+        "b": 168
+      },
+      "average_color_hex": "#c2bba8"
+    },
+    {
+      "id": 82,
+      "pixel_count": 1908,
+      "average_color": {
+        "r": 202,
+        "g": 189,
+        "b": 163
+      },
+      "average_color_hex": "#cabda3"
+    },
+    {
+      "id": 83,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 80,
+        "g": 72,
+        "b": 58
+      },
+      "average_color_hex": "#50483a"
+    },
+    {
+      "id": 84,
+      "pixel_count": 180,
+      "average_color": {
+        "r": 198,
+        "g": 187,
+        "b": 165
+      },
+      "average_color_hex": "#c6bba5"
+    },
+    {
+      "id": 85,
+      "pixel_count": 321,
+      "average_color": {
+        "r": 235,
+        "g": 229,
+        "b": 218
+      },
+      "average_color_hex": "#ebe5da"
+    },
+    {
+      "id": 86,
+      "pixel_count": 177,
+      "average_color": {
+        "r": 192,
+        "g": 183,
+        "b": 163
+      },
+      "average_color_hex": "#c0b7a3"
+    },
+    {
+      "id": 87,
+      "pixel_count": 256,
+      "average_color": {
+        "r": 228,
+        "g": 223,
+        "b": 213
+      },
+      "average_color_hex": "#e4dfd5"
+    },
+    {
+      "id": 88,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 78,
+        "g": 64,
+        "b": 41
+      },
+      "average_color_hex": "#4e4029"
+    },
+    {
+      "id": 89,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 192,
+        "g": 183,
+        "b": 150
+      },
+      "average_color_hex": "#c0b796"
+    },
+    {
+      "id": 90,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 132,
+        "g": 127,
+        "b": 129
+      },
+      "average_color_hex": "#847f81"
+    },
+    {
+      "id": 91,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 143,
+        "g": 139,
+        "b": 109
+      },
+      "average_color_hex": "#8f8b6d"
+    },
+    {
+      "id": 92,
+      "pixel_count": 312,
+      "average_color": {
+        "r": 81,
+        "g": 74,
+        "b": 57
+      },
+      "average_color_hex": "#514a39"
+    },
+    {
+      "id": 93,
+      "pixel_count": 416,
+      "average_color": {
+        "r": 160,
+        "g": 153,
+        "b": 141
+      },
+      "average_color_hex": "#a0998d"
+    },
+    {
+      "id": 94,
+      "pixel_count": 1114,
+      "average_color": {
+        "r": 189,
+        "g": 180,
+        "b": 166
+      },
+      "average_color_hex": "#bdb4a6"
+    },
+    {
+      "id": 95,
+      "pixel_count": 223,
+      "average_color": {
+        "r": 123,
+        "g": 126,
+        "b": 135
+      },
+      "average_color_hex": "#7b7e87"
+    },
+    {
+      "id": 96,
+      "pixel_count": 79,
+      "average_color": {
+        "r": 78,
+        "g": 71,
+        "b": 59
+      },
+      "average_color_hex": "#4e473b"
+    },
+    {
+      "id": 97,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 141,
+        "g": 136,
+        "b": 140
+      },
+      "average_color_hex": "#8d888c"
+    },
+    {
+      "id": 98,
+      "pixel_count": 404,
+      "average_color": {
+        "r": 57,
+        "g": 53,
+        "b": 39
+      },
+      "average_color_hex": "#393527"
+    },
+    {
+      "id": 99,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 129,
+        "g": 120,
+        "b": 111
+      },
+      "average_color_hex": "#81786f"
+    },
+    {
+      "id": 100,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 176,
+        "g": 169,
+        "b": 154
+      },
+      "average_color_hex": "#b0a99a"
+    },
+    {
+      "id": 101,
+      "pixel_count": 122,
+      "average_color": {
+        "r": 170,
+        "g": 167,
+        "b": 152
+      },
+      "average_color_hex": "#aaa798"
+    },
+    {
+      "id": 102,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 193,
+        "g": 181,
+        "b": 159
+      },
+      "average_color_hex": "#c1b59f"
+    },
+    {
+      "id": 103,
+      "pixel_count": 92,
+      "average_color": {
+        "r": 78,
+        "g": 72,
+        "b": 60
+      },
+      "average_color_hex": "#4e483c"
+    },
+    {
+      "id": 104,
+      "pixel_count": 187,
+      "average_color": {
+        "r": 199,
+        "g": 187,
+        "b": 164
+      },
+      "average_color_hex": "#c7bba4"
+    },
+    {
+      "id": 105,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 73,
+        "g": 70,
+        "b": 61
+      },
+      "average_color_hex": "#49463d"
+    },
+    {
+      "id": 106,
+      "pixel_count": 114,
+      "average_color": {
+        "r": 188,
+        "g": 176,
+        "b": 161
+      },
+      "average_color_hex": "#bcb0a1"
+    },
+    {
+      "id": 107,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 65,
+        "g": 65,
+        "b": 61
+      },
+      "average_color_hex": "#41413d"
+    },
+    {
+      "id": 108,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 25,
+        "g": 24,
+        "b": 25
+      },
+      "average_color_hex": "#191819"
+    },
+    {
+      "id": 109,
+      "pixel_count": 43,
+      "average_color": {
+        "r": 144,
+        "g": 134,
+        "b": 136
+      },
+      "average_color_hex": "#908688"
+    },
+    {
+      "id": 110,
+      "pixel_count": 120,
+      "average_color": {
+        "r": 118,
+        "g": 115,
+        "b": 108
+      },
+      "average_color_hex": "#76736c"
+    },
+    {
+      "id": 111,
+      "pixel_count": 335,
+      "average_color": {
+        "r": 113,
+        "g": 108,
+        "b": 97
+      },
+      "average_color_hex": "#716c61"
+    },
+    {
+      "id": 112,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 195,
+        "g": 183,
+        "b": 159
+      },
+      "average_color_hex": "#c3b79f"
+    },
+    {
+      "id": 113,
+      "pixel_count": 135,
+      "average_color": {
+        "r": 24,
+        "g": 21,
+        "b": 23
+      },
+      "average_color_hex": "#181517"
+    },
+    {
+      "id": 114,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 83,
+        "g": 76,
+        "b": 60
+      },
+      "average_color_hex": "#534c3c"
+    },
+    {
+      "id": 115,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 112,
+        "g": 119,
+        "b": 113
+      },
+      "average_color_hex": "#707771"
+    },
+    {
+      "id": 116,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 80,
+        "g": 75,
+        "b": 63
+      },
+      "average_color_hex": "#504b3f"
+    },
+    {
+      "id": 117,
+      "pixel_count": 61,
+      "average_color": {
+        "r": 84,
+        "g": 78,
+        "b": 59
+      },
+      "average_color_hex": "#544e3b"
+    },
+    {
+      "id": 118,
+      "pixel_count": 92,
+      "average_color": {
+        "r": 194,
+        "g": 182,
+        "b": 158
+      },
+      "average_color_hex": "#c2b69e"
+    },
+    {
+      "id": 119,
+      "pixel_count": 33,
+      "average_color": {
+        "r": 193,
+        "g": 181,
+        "b": 160
+      },
+      "average_color_hex": "#c1b5a0"
+    },
+    {
+      "id": 120,
+      "pixel_count": 35,
+      "average_color": {
+        "r": 68,
+        "g": 75,
+        "b": 70
+      },
+      "average_color_hex": "#444b46"
+    },
+    {
+      "id": 121,
+      "pixel_count": 73,
+      "average_color": {
+        "r": 173,
+        "g": 178,
+        "b": 156
+      },
+      "average_color_hex": "#adb29c"
+    },
+    {
+      "id": 122,
+      "pixel_count": 37,
+      "average_color": {
+        "r": 23,
+        "g": 25,
+        "b": 22
+      },
+      "average_color_hex": "#171916"
+    },
+    {
+      "id": 123,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 103,
+        "g": 116,
+        "b": 128
+      },
+      "average_color_hex": "#677480"
+    },
+    {
+      "id": 124,
+      "pixel_count": 423,
+      "average_color": {
+        "r": 197,
+        "g": 195,
+        "b": 182
+      },
+      "average_color_hex": "#c5c3b6"
+    },
+    {
+      "id": 125,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 233,
+        "g": 235,
+        "b": 227
+      },
+      "average_color_hex": "#e9ebe3"
+    },
+    {
+      "id": 126,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 22,
+        "g": 14,
+        "b": 12
+      },
+      "average_color_hex": "#160e0c"
+    },
+    {
+      "id": 127,
+      "pixel_count": 41,
+      "average_color": {
+        "r": 245,
+        "g": 244,
+        "b": 241
+      },
+      "average_color_hex": "#f5f4f1"
+    },
+    {
+      "id": 128,
+      "pixel_count": 109,
+      "average_color": {
+        "r": 235,
+        "g": 233,
+        "b": 222
+      },
+      "average_color_hex": "#ebe9de"
+    },
+    {
+      "id": 129,
+      "pixel_count": 4177,
+      "average_color": {
+        "r": 200,
+        "g": 181,
+        "b": 152
+      },
+      "average_color_hex": "#c8b598"
+    },
+    {
+      "id": 130,
+      "pixel_count": 279,
+      "average_color": {
+        "r": 9,
+        "g": 9,
+        "b": 11
+      },
+      "average_color_hex": "#09090b"
+    },
+    {
+      "id": 131,
+      "pixel_count": 50,
+      "average_color": {
+        "r": 135,
+        "g": 143,
+        "b": 151
+      },
+      "average_color_hex": "#878f97"
+    },
+    {
+      "id": 132,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 131,
+        "g": 138,
+        "b": 146
+      },
+      "average_color_hex": "#838a92"
+    },
+    {
+      "id": 133,
+      "pixel_count": 57,
+      "average_color": {
+        "r": 135,
+        "g": 140,
+        "b": 117
+      },
+      "average_color_hex": "#878c75"
+    },
+    {
+      "id": 134,
+      "pixel_count": 76,
+      "average_color": {
+        "r": 158,
+        "g": 155,
+        "b": 154
+      },
+      "average_color_hex": "#9e9b9a"
+    },
+    {
+      "id": 135,
+      "pixel_count": 120,
+      "average_color": {
+        "r": 192,
+        "g": 195,
+        "b": 198
+      },
+      "average_color_hex": "#c0c3c6"
+    },
+    {
+      "id": 136,
+      "pixel_count": 55,
+      "average_color": {
+        "r": 89,
+        "g": 89,
+        "b": 53
+      },
+      "average_color_hex": "#595935"
+    },
+    {
+      "id": 137,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 209,
+        "g": 209,
+        "b": 210
+      },
+      "average_color_hex": "#d1d1d2"
+    },
+    {
+      "id": 138,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 128,
+        "g": 131,
+        "b": 99
+      },
+      "average_color_hex": "#808363"
+    },
+    {
+      "id": 139,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 111,
+        "g": 114,
+        "b": 116
+      },
+      "average_color_hex": "#6f7274"
+    },
+    {
+      "id": 140,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 23,
+        "g": 15,
+        "b": 12
+      },
+      "average_color_hex": "#170f0c"
+    },
+    {
+      "id": 141,
+      "pixel_count": 2306,
+      "average_color": {
+        "r": 107,
+        "g": 100,
+        "b": 50
+      },
+      "average_color_hex": "#6b6432"
+    },
+    {
+      "id": 142,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 140,
+        "g": 138,
+        "b": 112
+      },
+      "average_color_hex": "#8c8a70"
+    },
+    {
+      "id": 143,
+      "pixel_count": 49,
+      "average_color": {
+        "r": 93,
+        "g": 89,
+        "b": 47
+      },
+      "average_color_hex": "#5d592f"
+    },
+    {
+      "id": 144,
+      "pixel_count": 67,
+      "average_color": {
+        "r": 90,
+        "g": 87,
+        "b": 48
+      },
+      "average_color_hex": "#5a5730"
+    },
+    {
+      "id": 145,
+      "pixel_count": 394,
+      "average_color": {
+        "r": 118,
+        "g": 135,
+        "b": 131
+      },
+      "average_color_hex": "#768783"
+    },
+    {
+      "id": 146,
+      "pixel_count": 1720,
+      "average_color": {
+        "r": 16,
+        "g": 16,
+        "b": 18
+      },
+      "average_color_hex": "#101012"
+    },
+    {
+      "id": 147,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 144,
+        "g": 132,
+        "b": 83
+      },
+      "average_color_hex": "#908453"
+    },
+    {
+      "id": 148,
+      "pixel_count": 44,
+      "average_color": {
+        "r": 192,
+        "g": 176,
+        "b": 144
+      },
+      "average_color_hex": "#c0b090"
+    },
+    {
+      "id": 149,
+      "pixel_count": 54,
+      "average_color": {
+        "r": 152,
+        "g": 136,
+        "b": 84
+      },
+      "average_color_hex": "#988854"
+    },
+    {
+      "id": 150,
+      "pixel_count": 44,
+      "average_color": {
+        "r": 160,
+        "g": 145,
+        "b": 108
+      },
+      "average_color_hex": "#a0916c"
+    },
+    {
+      "id": 151,
+      "pixel_count": 9306,
+      "average_color": {
+        "r": 15,
+        "g": 15,
+        "b": 17
+      },
+      "average_color_hex": "#0f0f11"
+    },
+    {
+      "id": 152,
+      "pixel_count": 463,
+      "average_color": {
+        "r": 151,
+        "g": 137,
+        "b": 90
+      },
+      "average_color_hex": "#97895a"
+    },
+    {
+      "id": 153,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 212,
+        "g": 201,
+        "b": 181
+      },
+      "average_color_hex": "#d4c9b5"
+    },
+    {
+      "id": 154,
+      "pixel_count": 165,
+      "average_color": {
+        "r": 139,
+        "g": 124,
+        "b": 93
+      },
+      "average_color_hex": "#8b7c5d"
+    },
+    {
+      "id": 155,
+      "pixel_count": 111,
+      "average_color": {
+        "r": 216,
+        "g": 202,
+        "b": 175
+      },
+      "average_color_hex": "#d8caaf"
+    },
+    {
+      "id": 156,
+      "pixel_count": 133,
+      "average_color": {
+        "r": 5,
+        "g": 5,
+        "b": 4
+      },
+      "average_color_hex": "#050504"
+    },
+    {
+      "id": 157,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 58,
+        "g": 56,
+        "b": 27
+      },
+      "average_color_hex": "#3a381b"
+    },
+    {
+      "id": 158,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 160,
+        "g": 158,
+        "b": 57
+      },
+      "average_color_hex": "#a09e39"
+    },
+    {
+      "id": 159,
+      "pixel_count": 557,
+      "average_color": {
+        "r": 176,
+        "g": 182,
+        "b": 194
+      },
+      "average_color_hex": "#b0b6c2"
+    },
+    {
+      "id": 160,
+      "pixel_count": 44,
+      "average_color": {
+        "r": 23,
+        "g": 22,
+        "b": 15
+      },
+      "average_color_hex": "#17160f"
+    },
+    {
+      "id": 161,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 100,
+        "g": 108,
+        "b": 38
+      },
+      "average_color_hex": "#646c26"
+    },
+    {
+      "id": 162,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 158,
+        "g": 139,
+        "b": 89
+      },
+      "average_color_hex": "#9e8b59"
+    },
+    {
+      "id": 163,
+      "pixel_count": 1728,
+      "average_color": {
+        "r": 178,
+        "g": 157,
+        "b": 90
+      },
+      "average_color_hex": "#b29d5a"
+    },
+    {
+      "id": 164,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 152,
+        "g": 132,
+        "b": 87
+      },
+      "average_color_hex": "#988457"
+    },
+    {
+      "id": 165,
+      "pixel_count": 35,
+      "average_color": {
+        "r": 246,
+        "g": 229,
+        "b": 206
+      },
+      "average_color_hex": "#f6e5ce"
+    },
+    {
+      "id": 166,
+      "pixel_count": 63,
+      "average_color": {
+        "r": 80,
+        "g": 86,
+        "b": 31
+      },
+      "average_color_hex": "#50561f"
+    },
+    {
+      "id": 167,
+      "pixel_count": 138,
+      "average_color": {
+        "r": 181,
+        "g": 170,
+        "b": 146
+      },
+      "average_color_hex": "#b5aa92"
+    },
+    {
+      "id": 168,
+      "pixel_count": 391,
+      "average_color": {
+        "r": 24,
+        "g": 24,
+        "b": 16
+      },
+      "average_color_hex": "#181810"
+    },
+    {
+      "id": 169,
+      "pixel_count": 406,
+      "average_color": {
+        "r": 101,
+        "g": 104,
+        "b": 115
+      },
+      "average_color_hex": "#656873"
+    },
+    {
+      "id": 170,
+      "pixel_count": 183,
+      "average_color": {
+        "r": 12,
+        "g": 12,
+        "b": 13
+      },
+      "average_color_hex": "#0c0c0d"
+    },
+    {
+      "id": 171,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 22,
+        "g": 22,
+        "b": 18
+      },
+      "average_color_hex": "#161612"
+    },
+    {
+      "id": 172,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 51,
+        "g": 61,
+        "b": 82
+      },
+      "average_color_hex": "#333d52"
+    },
+    {
+      "id": 173,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 174,
+        "g": 155,
+        "b": 83
+      },
+      "average_color_hex": "#ae9b53"
+    },
+    {
+      "id": 174,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 48,
+        "g": 49,
+        "b": 55
+      },
+      "average_color_hex": "#303137"
+    },
+    {
+      "id": 175,
+      "pixel_count": 89,
+      "average_color": {
+        "r": 11,
+        "g": 12,
+        "b": 15
+      },
+      "average_color_hex": "#0b0c0f"
+    },
+    {
+      "id": 176,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 144,
+        "g": 161,
+        "b": 196
+      },
+      "average_color_hex": "#90a1c4"
+    },
+    {
+      "id": 177,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 77,
+        "g": 81,
+        "b": 91
+      },
+      "average_color_hex": "#4d515b"
+    },
+    {
+      "id": 178,
+      "pixel_count": 31,
+      "average_color": {
+        "r": 137,
+        "g": 116,
+        "b": 98
+      },
+      "average_color_hex": "#897462"
+    },
+    {
+      "id": 179,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 181,
+        "g": 167,
+        "b": 139
+      },
+      "average_color_hex": "#b5a78b"
+    },
+    {
+      "id": 180,
+      "pixel_count": 85,
+      "average_color": {
+        "r": 25,
+        "g": 25,
+        "b": 19
+      },
+      "average_color_hex": "#191913"
+    },
+    {
+      "id": 181,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 128,
+        "g": 108,
+        "b": 51
+      },
+      "average_color_hex": "#806c33"
+    },
+    {
+      "id": 182,
+      "pixel_count": 441,
+      "average_color": {
+        "r": 163,
+        "g": 142,
+        "b": 122
+      },
+      "average_color_hex": "#a38e7a"
+    },
+    {
+      "id": 183,
+      "pixel_count": 109,
+      "average_color": {
+        "r": 22,
+        "g": 17,
+        "b": 11
+      },
+      "average_color_hex": "#16110b"
+    },
+    {
+      "id": 184,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 68,
+        "g": 71,
+        "b": 79
+      },
+      "average_color_hex": "#44474f"
+    },
+    {
+      "id": 185,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 164,
+        "g": 139,
+        "b": 105
+      },
+      "average_color_hex": "#a48b69"
+    },
+    {
+      "id": 186,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 22,
+        "g": 22,
+        "b": 19
+      },
+      "average_color_hex": "#161613"
+    },
+    {
+      "id": 187,
+      "pixel_count": 271,
+      "average_color": {
+        "r": 103,
+        "g": 86,
+        "b": 53
+      },
+      "average_color_hex": "#675635"
+    },
+    {
+      "id": 188,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 124,
+        "g": 128,
+        "b": 138
+      },
+      "average_color_hex": "#7c808a"
+    },
+    {
+      "id": 189,
+      "pixel_count": 71,
+      "average_color": {
+        "r": 67,
+        "g": 72,
+        "b": 87
+      },
+      "average_color_hex": "#434857"
+    },
+    {
+      "id": 190,
+      "pixel_count": 89,
+      "average_color": {
+        "r": 13,
+        "g": 13,
+        "b": 14
+      },
+      "average_color_hex": "#0d0d0e"
+    },
+    {
+      "id": 191,
+      "pixel_count": 189,
+      "average_color": {
+        "r": 189,
+        "g": 166,
+        "b": 143
+      },
+      "average_color_hex": "#bda68f"
+    },
+    {
+      "id": 192,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 149,
+        "g": 126,
+        "b": 89
+      },
+      "average_color_hex": "#957e59"
+    },
+    {
+      "id": 193,
+      "pixel_count": 46,
+      "average_color": {
+        "r": 87,
+        "g": 81,
+        "b": 53
+      },
+      "average_color_hex": "#575135"
+    },
+    {
+      "id": 194,
+      "pixel_count": 55,
+      "average_color": {
+        "r": 202,
+        "g": 178,
+        "b": 112
+      },
+      "average_color_hex": "#cab270"
+    },
+    {
+      "id": 195,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 173,
+        "g": 148,
+        "b": 124
+      },
+      "average_color_hex": "#ad947c"
+    },
+    {
+      "id": 196,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 28,
+        "g": 22,
+        "b": 13
+      },
+      "average_color_hex": "#1c160d"
+    },
+    {
+      "id": 197,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 15,
+        "g": 15,
+        "b": 14
+      },
+      "average_color_hex": "#0f0f0e"
+    },
+    {
+      "id": 198,
+      "pixel_count": 31,
+      "average_color": {
+        "r": 160,
+        "g": 178,
+        "b": 209
+      },
+      "average_color_hex": "#a0b2d1"
+    },
+    {
+      "id": 199,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 176,
+        "g": 154,
+        "b": 133
+      },
+      "average_color_hex": "#b09a85"
+    },
+    {
+      "id": 200,
+      "pixel_count": 636,
+      "average_color": {
+        "r": 182,
+        "g": 156,
+        "b": 128
+      },
+      "average_color_hex": "#b69c80"
+    },
+    {
+      "id": 201,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 229,
+        "g": 208,
+        "b": 185
+      },
+      "average_color_hex": "#e5d0b9"
+    },
+    {
+      "id": 202,
+      "pixel_count": 103,
+      "average_color": {
+        "r": 164,
+        "g": 142,
+        "b": 81
+      },
+      "average_color_hex": "#a48e51"
+    },
+    {
+      "id": 203,
+      "pixel_count": 443,
+      "average_color": {
+        "r": 163,
+        "g": 138,
+        "b": 88
+      },
+      "average_color_hex": "#a38a58"
+    },
+    {
+      "id": 204,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 26,
+        "g": 23,
+        "b": 17
+      },
+      "average_color_hex": "#1a1711"
+    },
+    {
+      "id": 205,
+      "pixel_count": 50,
+      "average_color": {
+        "r": 27,
+        "g": 24,
+        "b": 17
+      },
+      "average_color_hex": "#1b1811"
+    },
+    {
+      "id": 206,
+      "pixel_count": 140,
+      "average_color": {
+        "r": 28,
+        "g": 26,
+        "b": 13
+      },
+      "average_color_hex": "#1c1a0d"
+    },
+    {
+      "id": 207,
+      "pixel_count": 8024,
+      "average_color": {
+        "r": 18,
+        "g": 22,
+        "b": 11
+      },
+      "average_color_hex": "#12160b"
+    },
+    {
+      "id": 208,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 181,
+        "g": 148,
+        "b": 104
+      },
+      "average_color_hex": "#b59468"
+    },
+    {
+      "id": 209,
+      "pixel_count": 60,
+      "average_color": {
+        "r": 23,
+        "g": 17,
+        "b": 11
+      },
+      "average_color_hex": "#17110b"
+    },
+    {
+      "id": 210,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 21,
+        "g": 17,
+        "b": 15
+      },
+      "average_color_hex": "#15110f"
+    },
+    {
+      "id": 211,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 163,
+        "g": 131,
+        "b": 83
+      },
+      "average_color_hex": "#a38353"
+    },
+    {
+      "id": 212,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 21,
+        "g": 18,
+        "b": 15
+      },
+      "average_color_hex": "#15120f"
+    },
+    {
+      "id": 213,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 85,
+        "g": 72,
+        "b": 58
+      },
+      "average_color_hex": "#55483a"
+    },
+    {
+      "id": 214,
+      "pixel_count": 35,
+      "average_color": {
+        "r": 151,
+        "g": 121,
+        "b": 83
+      },
+      "average_color_hex": "#977953"
+    },
+    {
+      "id": 215,
+      "pixel_count": 71,
+      "average_color": {
+        "r": 15,
+        "g": 15,
+        "b": 14
+      },
+      "average_color_hex": "#0f0f0e"
+    },
+    {
+      "id": 216,
+      "pixel_count": 95,
+      "average_color": {
+        "r": 165,
+        "g": 137,
+        "b": 103
+      },
+      "average_color_hex": "#a58967"
+    },
+    {
+      "id": 217,
+      "pixel_count": 105,
+      "average_color": {
+        "r": 19,
+        "g": 19,
+        "b": 14
+      },
+      "average_color_hex": "#13130e"
+    },
+    {
+      "id": 218,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 20,
+        "g": 20,
+        "b": 14
+      },
+      "average_color_hex": "#14140e"
+    },
+    {
+      "id": 219,
+      "pixel_count": 88,
+      "average_color": {
+        "r": 172,
+        "g": 146,
+        "b": 120
+      },
+      "average_color_hex": "#ac9278"
+    },
+    {
+      "id": 220,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 24,
+        "g": 19,
+        "b": 15
+      },
+      "average_color_hex": "#18130f"
+    },
+    {
+      "id": 221,
+      "pixel_count": 143,
+      "average_color": {
+        "r": 199,
+        "g": 167,
+        "b": 130
+      },
+      "average_color_hex": "#c7a782"
+    },
+    {
+      "id": 222,
+      "pixel_count": 153,
+      "average_color": {
+        "r": 222,
+        "g": 191,
+        "b": 150
+      },
+      "average_color_hex": "#debf96"
+    },
+    {
+      "id": 223,
+      "pixel_count": 79,
+      "average_color": {
+        "r": 75,
+        "g": 60,
+        "b": 49
+      },
+      "average_color_hex": "#4b3c31"
+    },
+    {
+      "id": 224,
+      "pixel_count": 51,
+      "average_color": {
+        "r": 142,
+        "g": 117,
+        "b": 88
+      },
+      "average_color_hex": "#8e7558"
+    },
+    {
+      "id": 225,
+      "pixel_count": 70,
+      "average_color": {
+        "r": 17,
+        "g": 17,
+        "b": 19
+      },
+      "average_color_hex": "#111113"
+    },
+    {
+      "id": 226,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 176,
+        "g": 152,
+        "b": 128
+      },
+      "average_color_hex": "#b09880"
+    },
+    {
+      "id": 227,
+      "pixel_count": 41,
+      "average_color": {
+        "r": 108,
+        "g": 87,
+        "b": 61
+      },
+      "average_color_hex": "#6c573d"
+    },
+    {
+      "id": 228,
+      "pixel_count": 72,
+      "average_color": {
+        "r": 173,
+        "g": 145,
+        "b": 113
+      },
+      "average_color_hex": "#ad9171"
+    },
+    {
+      "id": 229,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 169,
+        "g": 143,
+        "b": 116
+      },
+      "average_color_hex": "#a98f74"
+    },
+    {
+      "id": 230,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 18,
+        "g": 16,
+        "b": 17
+      },
+      "average_color_hex": "#121011"
+    },
+    {
+      "id": 231,
+      "pixel_count": 50,
+      "average_color": {
+        "r": 166,
+        "g": 133,
+        "b": 91
+      },
+      "average_color_hex": "#a6855b"
+    },
+    {
+      "id": 232,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 27,
+        "g": 24,
+        "b": 13
+      },
+      "average_color_hex": "#1b180d"
+    },
+    {
+      "id": 233,
+      "pixel_count": 50,
+      "average_color": {
+        "r": 155,
+        "g": 130,
+        "b": 63
+      },
+      "average_color_hex": "#9b823f"
+    },
+    {
+      "id": 234,
+      "pixel_count": 49,
+      "average_color": {
+        "r": 140,
+        "g": 148,
+        "b": 37
+      },
+      "average_color_hex": "#8c9425"
+    },
+    {
+      "id": 235,
+      "pixel_count": 99,
+      "average_color": {
+        "r": 172,
+        "g": 141,
+        "b": 110
+      },
+      "average_color_hex": "#ac8d6e"
+    },
+    {
+      "id": 236,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 203,
+        "g": 172,
+        "b": 142
+      },
+      "average_color_hex": "#cbac8e"
+    },
+    {
+      "id": 237,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 151,
+        "g": 123,
+        "b": 102
+      },
+      "average_color_hex": "#977b66"
+    },
+    {
+      "id": 238,
+      "pixel_count": 113,
+      "average_color": {
+        "r": 151,
+        "g": 125,
+        "b": 107
+      },
+      "average_color_hex": "#977d6b"
+    },
+    {
+      "id": 239,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 160,
+        "g": 131,
+        "b": 105
+      },
+      "average_color_hex": "#a08369"
+    },
+    {
+      "id": 240,
+      "pixel_count": 54,
+      "average_color": {
+        "r": 24,
+        "g": 23,
+        "b": 22
+      },
+      "average_color_hex": "#181716"
+    },
+    {
+      "id": 241,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 20,
+        "g": 18,
+        "b": 22
+      },
+      "average_color_hex": "#141216"
+    },
+    {
+      "id": 242,
+      "pixel_count": 49,
+      "average_color": {
+        "r": 141,
+        "g": 120,
+        "b": 104
+      },
+      "average_color_hex": "#8d7868"
+    },
+    {
+      "id": 243,
+      "pixel_count": 59,
+      "average_color": {
+        "r": 153,
+        "g": 118,
+        "b": 92
+      },
+      "average_color_hex": "#99765c"
+    },
+    {
+      "id": 244,
+      "pixel_count": 291,
+      "average_color": {
+        "r": 144,
+        "g": 124,
+        "b": 49
+      },
+      "average_color_hex": "#907c31"
+    },
+    {
+      "id": 245,
+      "pixel_count": 86,
+      "average_color": {
+        "r": 157,
+        "g": 128,
+        "b": 91
+      },
+      "average_color_hex": "#9d805b"
+    },
+    {
+      "id": 246,
+      "pixel_count": 64,
+      "average_color": {
+        "r": 165,
+        "g": 133,
+        "b": 106
+      },
+      "average_color_hex": "#a5856a"
+    },
+    {
+      "id": 247,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 21,
+        "g": 21,
+        "b": 23
+      },
+      "average_color_hex": "#151517"
+    },
+    {
+      "id": 248,
+      "pixel_count": 84,
+      "average_color": {
+        "r": 169,
+        "g": 141,
+        "b": 118
+      },
+      "average_color_hex": "#a98d76"
+    },
+    {
+      "id": 249,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 160,
+        "g": 120,
+        "b": 73
+      },
+      "average_color_hex": "#a07849"
+    },
+    {
+      "id": 250,
+      "pixel_count": 37,
+      "average_color": {
+        "r": 177,
+        "g": 151,
+        "b": 131
+      },
+      "average_color_hex": "#b19783"
+    },
+    {
+      "id": 251,
+      "pixel_count": 67,
+      "average_color": {
+        "r": 22,
+        "g": 20,
+        "b": 22
+      },
+      "average_color_hex": "#161416"
+    },
+    {
+      "id": 252,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 21,
+        "g": 18,
+        "b": 16
+      },
+      "average_color_hex": "#151210"
+    },
+    {
+      "id": 253,
+      "pixel_count": 82,
+      "average_color": {
+        "r": 165,
+        "g": 121,
+        "b": 66
+      },
+      "average_color_hex": "#a57942"
+    },
+    {
+      "id": 254,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 164,
+        "g": 125,
+        "b": 95
+      },
+      "average_color_hex": "#a47d5f"
+    },
+    {
+      "id": 255,
+      "pixel_count": 61,
+      "average_color": {
+        "r": 152,
+        "g": 124,
+        "b": 101
+      },
+      "average_color_hex": "#987c65"
+    },
+    {
+      "id": 256,
+      "pixel_count": 43,
+      "average_color": {
+        "r": 22,
+        "g": 21,
+        "b": 24
+      },
+      "average_color_hex": "#161518"
+    },
+    {
+      "id": 257,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 157,
+        "g": 128,
+        "b": 106
+      },
+      "average_color_hex": "#9d806a"
+    },
+    {
+      "id": 258,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 147,
+        "g": 128,
+        "b": 52
+      },
+      "average_color_hex": "#938034"
+    },
+    {
+      "id": 259,
+      "pixel_count": 64,
+      "average_color": {
+        "r": 140,
+        "g": 140,
+        "b": 37
+      },
+      "average_color_hex": "#8c8c25"
+    },
+    {
+      "id": 260,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 164,
+        "g": 121,
+        "b": 92
+      },
+      "average_color_hex": "#a4795c"
+    },
+    {
+      "id": 261,
+      "pixel_count": 500,
+      "average_color": {
+        "r": 23,
+        "g": 22,
+        "b": 25
+      },
+      "average_color_hex": "#171619"
+    },
+    {
+      "id": 262,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 27,
+        "g": 22,
+        "b": 19
+      },
+      "average_color_hex": "#1b1613"
+    },
+    {
+      "id": 263,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 23,
+        "g": 23,
+        "b": 19
+      },
+      "average_color_hex": "#171713"
+    },
+    {
+      "id": 264,
+      "pixel_count": 26,
+      "average_color": {
+        "r": 160,
+        "g": 122,
+        "b": 95
+      },
+      "average_color_hex": "#a07a5f"
+    },
+    {
+      "id": 265,
+      "pixel_count": 95,
+      "average_color": {
+        "r": 22,
+        "g": 21,
+        "b": 22
+      },
+      "average_color_hex": "#161516"
+    },
+    {
+      "id": 266,
+      "pixel_count": 166,
+      "average_color": {
+        "r": 22,
+        "g": 18,
+        "b": 17
+      },
+      "average_color_hex": "#161211"
+    },
+    {
+      "id": 267,
+      "pixel_count": 58,
+      "average_color": {
+        "r": 161,
+        "g": 131,
+        "b": 107
+      },
+      "average_color_hex": "#a1836b"
+    },
+    {
+      "id": 268,
+      "pixel_count": 51,
+      "average_color": {
+        "r": 24,
+        "g": 24,
+        "b": 19
+      },
+      "average_color_hex": "#181813"
+    },
+    {
+      "id": 269,
+      "pixel_count": 74,
+      "average_color": {
+        "r": 196,
+        "g": 143,
+        "b": 85
+      },
+      "average_color_hex": "#c48f55"
+    },
+    {
+      "id": 270,
+      "pixel_count": 52,
+      "average_color": {
+        "r": 19,
+        "g": 18,
+        "b": 21
+      },
+      "average_color_hex": "#131215"
+    },
+    {
+      "id": 271,
+      "pixel_count": 96,
+      "average_color": {
+        "r": 147,
+        "g": 122,
+        "b": 99
+      },
+      "average_color_hex": "#937a63"
+    },
+    {
+      "id": 272,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 19,
+        "g": 21,
+        "b": 11
+      },
+      "average_color_hex": "#13150b"
+    },
+    {
+      "id": 273,
+      "pixel_count": 441,
+      "average_color": {
+        "r": 23,
+        "g": 21,
+        "b": 23
+      },
+      "average_color_hex": "#171517"
+    },
+    {
+      "id": 274,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 150,
+        "g": 127,
+        "b": 103
+      },
+      "average_color_hex": "#967f67"
+    },
+    {
+      "id": 275,
+      "pixel_count": 54,
+      "average_color": {
+        "r": 148,
+        "g": 142,
+        "b": 41
+      },
+      "average_color_hex": "#948e29"
+    },
+    {
+      "id": 276,
+      "pixel_count": 57,
+      "average_color": {
+        "r": 22,
+        "g": 24,
+        "b": 18
+      },
+      "average_color_hex": "#161812"
+    },
+    {
+      "id": 277,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 23,
+        "g": 17,
+        "b": 15
+      },
+      "average_color_hex": "#17110f"
+    },
+    {
+      "id": 278,
+      "pixel_count": 57,
+      "average_color": {
+        "r": 159,
+        "g": 133,
+        "b": 105
+      },
+      "average_color_hex": "#9f8569"
+    },
+    {
+      "id": 279,
+      "pixel_count": 88,
+      "average_color": {
+        "r": 19,
+        "g": 21,
+        "b": 13
+      },
+      "average_color_hex": "#13150d"
+    },
+    {
+      "id": 280,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 162,
+        "g": 113,
+        "b": 61
+      },
+      "average_color_hex": "#a2713d"
+    },
+    {
+      "id": 281,
+      "pixel_count": 106,
+      "average_color": {
+        "r": 17,
+        "g": 16,
+        "b": 16
+      },
+      "average_color_hex": "#111010"
+    },
+    {
+      "id": 282,
+      "pixel_count": 104,
+      "average_color": {
+        "r": 24,
+        "g": 22,
+        "b": 22
+      },
+      "average_color_hex": "#181616"
+    },
+    {
+      "id": 283,
+      "pixel_count": 91,
+      "average_color": {
+        "r": 18,
+        "g": 16,
+        "b": 16
+      },
+      "average_color_hex": "#121010"
+    },
+    {
+      "id": 284,
+      "pixel_count": 49,
+      "average_color": {
+        "r": 18,
+        "g": 21,
+        "b": 10
+      },
+      "average_color_hex": "#12150a"
+    },
+    {
+      "id": 285,
+      "pixel_count": 101,
+      "average_color": {
+        "r": 159,
+        "g": 129,
+        "b": 107
+      },
+      "average_color_hex": "#9f816b"
+    },
+    {
+      "id": 286,
+      "pixel_count": 310,
+      "average_color": {
+        "r": 170,
+        "g": 140,
+        "b": 116
+      },
+      "average_color_hex": "#aa8c74"
+    },
+    {
+      "id": 287,
+      "pixel_count": 286,
+      "average_color": {
+        "r": 164,
+        "g": 134,
+        "b": 110
+      },
+      "average_color_hex": "#a4866e"
+    },
+    {
+      "id": 288,
+      "pixel_count": 58,
+      "average_color": {
+        "r": 19,
+        "g": 17,
+        "b": 20
+      },
+      "average_color_hex": "#131114"
+    },
+    {
+      "id": 289,
+      "pixel_count": 72,
+      "average_color": {
+        "r": 15,
+        "g": 13,
+        "b": 15
+      },
+      "average_color_hex": "#0f0d0f"
+    },
+    {
+      "id": 290,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 142,
+        "g": 134,
+        "b": 46
+      },
+      "average_color_hex": "#8e862e"
+    },
+    {
+      "id": 291,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 156,
+        "g": 138,
+        "b": 85
+      },
+      "average_color_hex": "#9c8a55"
+    },
+    {
+      "id": 292,
+      "pixel_count": 35,
+      "average_color": {
+        "r": 17,
+        "g": 18,
+        "b": 13
+      },
+      "average_color_hex": "#11120d"
+    },
+    {
+      "id": 293,
+      "pixel_count": 2938,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 21
+      },
+      "average_color_hex": "#151315"
+    },
+    {
+      "id": 294,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 180,
+        "g": 154,
+        "b": 123
+      },
+      "average_color_hex": "#b49a7b"
+    },
+    {
+      "id": 295,
+      "pixel_count": 71,
+      "average_color": {
+        "r": 19,
+        "g": 17,
+        "b": 19
+      },
+      "average_color_hex": "#131113"
+    },
+    {
+      "id": 296,
+      "pixel_count": 50,
+      "average_color": {
+        "r": 22,
+        "g": 22,
+        "b": 11
+      },
+      "average_color_hex": "#16160b"
+    },
+    {
+      "id": 297,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 181,
+        "g": 165,
+        "b": 132
+      },
+      "average_color_hex": "#b5a584"
+    },
+    {
+      "id": 298,
+      "pixel_count": 51,
+      "average_color": {
+        "r": 22,
+        "g": 20,
+        "b": 21
+      },
+      "average_color_hex": "#161415"
+    },
+    {
+      "id": 299,
+      "pixel_count": 395,
+      "average_color": {
+        "r": 168,
+        "g": 139,
+        "b": 115
+      },
+      "average_color_hex": "#a88b73"
+    },
+    {
+      "id": 300,
+      "pixel_count": 31,
+      "average_color": {
+        "r": 167,
+        "g": 141,
+        "b": 117
+      },
+      "average_color_hex": "#a78d75"
+    },
+    {
+      "id": 301,
+      "pixel_count": 61,
+      "average_color": {
+        "r": 156,
+        "g": 124,
+        "b": 102
+      },
+      "average_color_hex": "#9c7c66"
+    },
+    {
+      "id": 302,
+      "pixel_count": 131,
+      "average_color": {
+        "r": 156,
+        "g": 133,
+        "b": 114
+      },
+      "average_color_hex": "#9c8572"
+    },
+    {
+      "id": 303,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 21
+      },
+      "average_color_hex": "#151315"
+    },
+    {
+      "id": 304,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 21,
+        "g": 21,
+        "b": 14
+      },
+      "average_color_hex": "#15150e"
+    },
+    {
+      "id": 305,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 27,
+        "g": 24,
+        "b": 13
+      },
+      "average_color_hex": "#1b180d"
+    },
+    {
+      "id": 306,
+      "pixel_count": 317,
+      "average_color": {
+        "r": 21,
+        "g": 21,
+        "b": 18
+      },
+      "average_color_hex": "#151512"
+    },
+    {
+      "id": 307,
+      "pixel_count": 55,
+      "average_color": {
+        "r": 158,
+        "g": 133,
+        "b": 110
+      },
+      "average_color_hex": "#9e856e"
+    },
+    {
+      "id": 308,
+      "pixel_count": 78,
+      "average_color": {
+        "r": 18,
+        "g": 16,
+        "b": 17
+      },
+      "average_color_hex": "#121011"
+    },
+    {
+      "id": 309,
+      "pixel_count": 264,
+      "average_color": {
+        "r": 19,
+        "g": 17,
+        "b": 20
+      },
+      "average_color_hex": "#131114"
+    },
+    {
+      "id": 310,
+      "pixel_count": 254,
+      "average_color": {
+        "r": 159,
+        "g": 132,
+        "b": 111
+      },
+      "average_color_hex": "#9f846f"
+    },
+    {
+      "id": 311,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 154,
+        "g": 145,
+        "b": 59
+      },
+      "average_color_hex": "#9a913b"
+    },
+    {
+      "id": 312,
+      "pixel_count": 44,
+      "average_color": {
+        "r": 150,
+        "g": 122,
+        "b": 101
+      },
+      "average_color_hex": "#967a65"
+    },
+    {
+      "id": 313,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 19
+      },
+      "average_color_hex": "#161313"
+    },
+    {
+      "id": 314,
+      "pixel_count": 61,
+      "average_color": {
+        "r": 19,
+        "g": 14,
+        "b": 13
+      },
+      "average_color_hex": "#130e0d"
+    },
+    {
+      "id": 315,
+      "pixel_count": 42,
+      "average_color": {
+        "r": 166,
+        "g": 144,
+        "b": 122
+      },
+      "average_color_hex": "#a6907a"
+    },
+    {
+      "id": 316,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 25,
+        "g": 22,
+        "b": 22
+      },
+      "average_color_hex": "#191616"
+    },
+    {
+      "id": 317,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 22,
+        "g": 20,
+        "b": 19
+      },
+      "average_color_hex": "#161413"
+    },
+    {
+      "id": 318,
+      "pixel_count": 376,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 18
+      },
+      "average_color_hex": "#161312"
+    },
+    {
+      "id": 319,
+      "pixel_count": 33,
+      "average_color": {
+        "r": 166,
+        "g": 139,
+        "b": 122
+      },
+      "average_color_hex": "#a68b7a"
+    },
+    {
+      "id": 320,
+      "pixel_count": 33,
+      "average_color": {
+        "r": 23,
+        "g": 21,
+        "b": 20
+      },
+      "average_color_hex": "#171514"
+    },
+    {
+      "id": 321,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 23,
+        "g": 21,
+        "b": 20
+      },
+      "average_color_hex": "#171514"
+    },
+    {
+      "id": 322,
+      "pixel_count": 59,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 19
+      },
+      "average_color_hex": "#151313"
+    },
+    {
+      "id": 323,
+      "pixel_count": 60,
+      "average_color": {
+        "r": 171,
+        "g": 144,
+        "b": 119
+      },
+      "average_color_hex": "#ab9077"
+    },
+    {
+      "id": 324,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 164,
+        "g": 144,
+        "b": 130
+      },
+      "average_color_hex": "#a49082"
+    },
+    {
+      "id": 325,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 23,
+        "g": 25,
+        "b": 11
+      },
+      "average_color_hex": "#17190b"
+    },
+    {
+      "id": 326,
+      "pixel_count": 46,
+      "average_color": {
+        "r": 24,
+        "g": 20,
+        "b": 20
+      },
+      "average_color_hex": "#181414"
+    },
+    {
+      "id": 327,
+      "pixel_count": 125,
+      "average_color": {
+        "r": 20,
+        "g": 18,
+        "b": 19
+      },
+      "average_color_hex": "#141213"
+    },
+    {
+      "id": 328,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 161,
+        "g": 129,
+        "b": 103
+      },
+      "average_color_hex": "#a18167"
+    },
+    {
+      "id": 329,
+      "pixel_count": 53,
+      "average_color": {
+        "r": 177,
+        "g": 145,
+        "b": 116
+      },
+      "average_color_hex": "#b19174"
+    },
+    {
+      "id": 330,
+      "pixel_count": 5067,
+      "average_color": {
+        "r": 22,
+        "g": 24,
+        "b": 11
+      },
+      "average_color_hex": "#16180b"
+    },
+    {
+      "id": 331,
+      "pixel_count": 464,
+      "average_color": {
+        "r": 21,
+        "g": 20,
+        "b": 22
+      },
+      "average_color_hex": "#151416"
+    },
+    {
+      "id": 332,
+      "pixel_count": 88,
+      "average_color": {
+        "r": 166,
+        "g": 140,
+        "b": 120
+      },
+      "average_color_hex": "#a68c78"
+    },
+    {
+      "id": 333,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 155,
+        "g": 130,
+        "b": 113
+      },
+      "average_color_hex": "#9b8271"
+    },
+    {
+      "id": 334,
+      "pixel_count": 43,
+      "average_color": {
+        "r": 23,
+        "g": 27,
+        "b": 13
+      },
+      "average_color_hex": "#171b0d"
+    },
+    {
+      "id": 335,
+      "pixel_count": 73,
+      "average_color": {
+        "r": 18,
+        "g": 23,
+        "b": 12
+      },
+      "average_color_hex": "#12170c"
+    },
+    {
+      "id": 336,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 24,
+        "g": 20,
+        "b": 20
+      },
+      "average_color_hex": "#181414"
+    },
+    {
+      "id": 337,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 157,
+        "g": 130,
+        "b": 110
+      },
+      "average_color_hex": "#9d826e"
+    },
+    {
+      "id": 338,
+      "pixel_count": 138,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 21
+      },
+      "average_color_hex": "#161315"
+    },
+    {
+      "id": 339,
+      "pixel_count": 40,
+      "average_color": {
+        "r": 23,
+        "g": 20,
+        "b": 21
+      },
+      "average_color_hex": "#171415"
+    },
+    {
+      "id": 340,
+      "pixel_count": 48,
+      "average_color": {
+        "r": 17,
+        "g": 17,
+        "b": 15
+      },
+      "average_color_hex": "#11110f"
+    },
+    {
+      "id": 341,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 25,
+        "g": 19,
+        "b": 18
+      },
+      "average_color_hex": "#191312"
+    },
+    {
+      "id": 342,
+      "pixel_count": 34,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 20
+      },
+      "average_color_hex": "#151314"
+    },
+    {
+      "id": 343,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 164,
+        "g": 139,
+        "b": 117
+      },
+      "average_color_hex": "#a48b75"
+    },
+    {
+      "id": 344,
+      "pixel_count": 30,
+      "average_color": {
+        "r": 24,
+        "g": 20,
+        "b": 21
+      },
+      "average_color_hex": "#181415"
+    },
+    {
+      "id": 345,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 167,
+        "g": 144,
+        "b": 126
+      },
+      "average_color_hex": "#a7907e"
+    },
+    {
+      "id": 346,
+      "pixel_count": 91,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 20
+      },
+      "average_color_hex": "#151314"
+    },
+    {
+      "id": 347,
+      "pixel_count": 103,
+      "average_color": {
+        "r": 164,
+        "g": 132,
+        "b": 107
+      },
+      "average_color_hex": "#a4846b"
+    },
+    {
+      "id": 348,
+      "pixel_count": 74,
+      "average_color": {
+        "r": 154,
+        "g": 124,
+        "b": 103
+      },
+      "average_color_hex": "#9a7c67"
+    },
+    {
+      "id": 349,
+      "pixel_count": 247,
+      "average_color": {
+        "r": 158,
+        "g": 134,
+        "b": 119
+      },
+      "average_color_hex": "#9e8677"
+    },
+    {
+      "id": 350,
+      "pixel_count": 99,
+      "average_color": {
+        "r": 153,
+        "g": 125,
+        "b": 106
+      },
+      "average_color_hex": "#997d6a"
+    },
+    {
+      "id": 351,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 24,
+        "g": 20,
+        "b": 20
+      },
+      "average_color_hex": "#181414"
+    },
+    {
+      "id": 352,
+      "pixel_count": 29,
+      "average_color": {
+        "r": 17,
+        "g": 16,
+        "b": 18
+      },
+      "average_color_hex": "#111012"
+    },
+    {
+      "id": 353,
+      "pixel_count": 99,
+      "average_color": {
+        "r": 26,
+        "g": 23,
+        "b": 25
+      },
+      "average_color_hex": "#1a1719"
+    },
+    {
+      "id": 354,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 20,
+        "g": 18,
+        "b": 20
+      },
+      "average_color_hex": "#141214"
+    },
+    {
+      "id": 355,
+      "pixel_count": 28,
+      "average_color": {
+        "r": 22,
+        "g": 20,
+        "b": 24
+      },
+      "average_color_hex": "#161418"
+    },
+    {
+      "id": 356,
+      "pixel_count": 202,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 20
+      },
+      "average_color_hex": "#161314"
+    },
+    {
+      "id": 357,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 173,
+        "g": 146,
+        "b": 122
+      },
+      "average_color_hex": "#ad927a"
+    },
+    {
+      "id": 358,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 25,
+        "g": 26,
+        "b": 11
+      },
+      "average_color_hex": "#191a0b"
+    },
+    {
+      "id": 359,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 36,
+        "g": 30,
+        "b": 29
+      },
+      "average_color_hex": "#241e1d"
+    },
+    {
+      "id": 360,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 159,
+        "g": 137,
+        "b": 119
+      },
+      "average_color_hex": "#9f8977"
+    },
+    {
+      "id": 361,
+      "pixel_count": 508,
+      "average_color": {
+        "r": 21,
+        "g": 18,
+        "b": 22
+      },
+      "average_color_hex": "#151216"
+    },
+    {
+      "id": 362,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 40,
+        "g": 33,
+        "b": 32
+      },
+      "average_color_hex": "#282120"
+    },
+    {
+      "id": 363,
+      "pixel_count": 27,
+      "average_color": {
+        "r": 23,
+        "g": 21,
+        "b": 22
+      },
+      "average_color_hex": "#171516"
+    },
+    {
+      "id": 364,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 155,
+        "g": 123,
+        "b": 102
+      },
+      "average_color_hex": "#9b7b66"
+    },
+    {
+      "id": 365,
+      "pixel_count": 247,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 18
+      },
+      "average_color_hex": "#161312"
+    },
+    {
+      "id": 366,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 189,
+        "g": 158,
+        "b": 131
+      },
+      "average_color_hex": "#bd9e83"
+    },
+    {
+      "id": 367,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 22
+      },
+      "average_color_hex": "#161316"
+    },
+    {
+      "id": 368,
+      "pixel_count": 32,
+      "average_color": {
+        "r": 166,
+        "g": 140,
+        "b": 122
+      },
+      "average_color_hex": "#a68c7a"
+    },
+    {
+      "id": 369,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 24,
+        "g": 20,
+        "b": 22
+      },
+      "average_color_hex": "#181416"
+    },
+    {
+      "id": 370,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 17,
+        "g": 16,
+        "b": 20
+      },
+      "average_color_hex": "#111014"
+    },
+    {
+      "id": 371,
+      "pixel_count": 89,
+      "average_color": {
+        "r": 193,
+        "g": 161,
+        "b": 134
+      },
+      "average_color_hex": "#c1a186"
+    },
+    {
+      "id": 372,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 144,
+        "g": 136,
+        "b": 87
+      },
+      "average_color_hex": "#908857"
+    },
+    {
+      "id": 373,
+      "pixel_count": 66,
+      "average_color": {
+        "r": 160,
+        "g": 131,
+        "b": 104
+      },
+      "average_color_hex": "#a08368"
+    },
+    {
+      "id": 374,
+      "pixel_count": 38,
+      "average_color": {
+        "r": 22,
+        "g": 21,
+        "b": 10
+      },
+      "average_color_hex": "#16150a"
+    },
+    {
+      "id": 375,
+      "pixel_count": 276,
+      "average_color": {
+        "r": 21,
+        "g": 19,
+        "b": 23
+      },
+      "average_color_hex": "#151317"
+    },
+    {
+      "id": 376,
+      "pixel_count": 35,
+      "average_color": {
+        "r": 16,
+        "g": 14,
+        "b": 17
+      },
+      "average_color_hex": "#100e11"
+    },
+    {
+      "id": 377,
+      "pixel_count": 47,
+      "average_color": {
+        "r": 27,
+        "g": 22,
+        "b": 23
+      },
+      "average_color_hex": "#1b1617"
+    },
+    {
+      "id": 378,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 169,
+        "g": 145,
+        "b": 123
+      },
+      "average_color_hex": "#a9917b"
+    },
+    {
+      "id": 379,
+      "pixel_count": 53,
+      "average_color": {
+        "r": 26,
+        "g": 23,
+        "b": 24
+      },
+      "average_color_hex": "#1a1718"
+    },
+    {
+      "id": 380,
+      "pixel_count": 41,
+      "average_color": {
+        "r": 153,
+        "g": 120,
+        "b": 97
+      },
+      "average_color_hex": "#997861"
+    },
+    {
+      "id": 381,
+      "pixel_count": 132,
+      "average_color": {
+        "r": 23,
+        "g": 29,
+        "b": 11
+      },
+      "average_color_hex": "#171d0b"
+    },
+    {
+      "id": 382,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 18,
+        "g": 16,
+        "b": 18
+      },
+      "average_color_hex": "#121012"
+    },
+    {
+      "id": 383,
+      "pixel_count": 22,
+      "average_color": {
+        "r": 161,
+        "g": 129,
+        "b": 105
+      },
+      "average_color_hex": "#a18169"
+    },
+    {
+      "id": 384,
+      "pixel_count": 65,
+      "average_color": {
+        "r": 29,
+        "g": 28,
+        "b": 13
+      },
+      "average_color_hex": "#1d1c0d"
+    },
+    {
+      "id": 385,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 25,
+        "g": 24,
+        "b": 12
+      },
+      "average_color_hex": "#19180c"
+    },
+    {
+      "id": 386,
+      "pixel_count": 24,
+      "average_color": {
+        "r": 171,
+        "g": 140,
+        "b": 116
+      },
+      "average_color_hex": "#ab8c74"
+    },
+    {
+      "id": 387,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 168,
+        "g": 142,
+        "b": 121
+      },
+      "average_color_hex": "#a88e79"
+    },
+    {
+      "id": 388,
+      "pixel_count": 21,
+      "average_color": {
+        "r": 19,
+        "g": 16,
+        "b": 17
+      },
+      "average_color_hex": "#131011"
+    },
+    {
+      "id": 389,
+      "pixel_count": 34,
+      "average_color": {
+        "r": 19,
+        "g": 17,
+        "b": 21
+      },
+      "average_color_hex": "#131115"
+    },
+    {
+      "id": 390,
+      "pixel_count": 118,
+      "average_color": {
+        "r": 153,
+        "g": 123,
+        "b": 100
+      },
+      "average_color_hex": "#997b64"
+    },
+    {
+      "id": 391,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 158,
+        "g": 130,
+        "b": 107
+      },
+      "average_color_hex": "#9e826b"
+    },
+    {
+      "id": 392,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 22,
+        "g": 18,
+        "b": 18
+      },
+      "average_color_hex": "#161212"
+    },
+    {
+      "id": 393,
+      "pixel_count": 46,
+      "average_color": {
+        "r": 22,
+        "g": 19,
+        "b": 21
+      },
+      "average_color_hex": "#161315"
+    },
+    {
+      "id": 394,
+      "pixel_count": 25,
+      "average_color": {
+        "r": 25,
+        "g": 23,
+        "b": 21
+      },
+      "average_color_hex": "#191715"
+    },
+    {
+      "id": 395,
+      "pixel_count": 36,
+      "average_color": {
+        "r": 23,
+        "g": 19,
+        "b": 18
+      },
+      "average_color_hex": "#171312"
+    },
+    {
+      "id": 396,
+      "pixel_count": 23,
+      "average_color": {
+        "r": 153,
+        "g": 128,
+        "b": 112
+      },
+      "average_color_hex": "#998070"
+    },
+    {
+      "id": 397,
+      "pixel_count": 39,
+      "average_color": {
+        "r": 24,
+        "g": 21,
+        "b": 24
+      },
+      "average_color_hex": "#181518"
+    }
+  ]
+}
