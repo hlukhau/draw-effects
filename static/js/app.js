@@ -616,8 +616,11 @@ function showSegmentationResults(fileId) {
                                     <button id="clearCanvasBtn" class="btn btn-outline-secondary btn-sm mr-2">
                                         <i class="fas fa-eraser"></i> Clear Canvas
                                     </button>
-                                    <button id="clearVideosBtn" class="btn btn-outline-danger btn-sm">
+                                    <button id="clearVideosBtn" class="btn btn-outline-danger btn-sm mr-2">
                                         <i class="fas fa-trash"></i> Clear Videos
+                                    </button>
+                                    <button id="generateVideoBtn" class="btn btn-success btn-sm">
+                                        <i class="fas fa-video"></i> Generate Video
                                     </button>
                                 </div>
                             </div>
@@ -752,9 +755,13 @@ function showSegmentationResults(fileId) {
                     infoCard.appendChild(infoBody);
                     infoCol.appendChild(infoCard);
                     
+                    // Add info section AFTER the images container, not inside it
+                    const segmentationResults = document.getElementById('segmentationResults');
+                    const cardBody = segmentationResults.querySelector('.card-body');
+                    
                     // When preserving canvas state, handle the info section carefully
                     if (canvasData.preserveCanvasState) {
-                        const existingInfoCol = imagesContainer.querySelector('.col-12.mt-3');
+                        const existingInfoCol = cardBody.querySelector('.col-12.mt-3');
                         if (existingInfoCol) {
                             // Move the existing canvas container to the new info body before replacing
                             const existingCanvasContainer = existingInfoCol.querySelector('.canvas-container');
@@ -771,10 +778,10 @@ function showSegmentationResults(fileId) {
                             }
                             existingInfoCol.replaceWith(infoCol);
                         } else {
-                            imagesContainer.appendChild(infoCol);
+                            cardBody.appendChild(infoCol);
                         }
                     } else {
-                        imagesContainer.appendChild(infoCol);
+                        cardBody.appendChild(infoCol);
                     }
                     
                 })
@@ -878,6 +885,7 @@ function initializeInteractiveCanvas(fileId) {
     document.getElementById('stopDrawingBtn').addEventListener('click', stopDrawingAll);
     document.getElementById('clearCanvasBtn').addEventListener('click', clearCanvas);
     document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
+    document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
     
     // Initialize brush type selector
     const brushSelector = document.getElementById('brushTypeSelect');
@@ -962,6 +970,12 @@ function updateSegmentInfoOnly(fileId) {
     if (clearVideosBtn) {
         clearVideosBtn.replaceWith(clearVideosBtn.cloneNode(true));
         document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
+    }
+    
+    const generateVideoBtn = document.getElementById('generateVideoBtn');
+    if (generateVideoBtn) {
+        generateVideoBtn.replaceWith(generateVideoBtn.cloneNode(true));
+        document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
     }
     
     // Update brush and background selectors
@@ -1623,27 +1637,11 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             if (stopBtn) stopBtn.style.display = 'none';
             stopDrawingTimer();
             
-            // Show video generation progress
-            showVideoGenerationProgress(true);
-            
-            // Capture final frame and finalize video
+            // Just capture final frame, don't auto-generate video
             if (videoRecorder) {
                 videoRecorder.captureFrame(); // Final frame
-                videoRecorder.finalize().then((videoUrl) => {
-                    // Hide video generation progress
-                    showVideoGenerationProgress(false);
-                    
-                    if (videoUrl) {
-                        showVideoResults(videoUrl);
-                    } else {
-                        console.warn('Video generation failed');
-                        showAlert('Video generation failed', 'danger');
-                    }
-                }).catch((error) => {
-                    console.error('Video generation error:', error);
-                    showVideoGenerationProgress(false);
-                    showAlert('Video generation failed: ' + error.message, 'danger');
-                });
+                videoRecorder.stop(); // Stop recording but don't finalize
+                showAlert('Drawing completed! Click "Generate Video" to create video from captured frames.', 'success');
             }
             
             showAlert(`Successfully drew ${description} (${sortedSegments.length} segments) with ${brushTypes[canvasData.currentBrushType].name}!`, 'success');
@@ -1842,6 +1840,77 @@ function resetApp() {
     }
     
     resetSegmentButton();
+}
+
+function generateVideoFromFrames() {
+    if (canvasData.cumulativeFrames.length === 0) {
+        showAlert('No frames captured yet. Please draw something first!', 'warning');
+        return;
+    }
+    
+    const videoDuration = parseInt(document.getElementById('videoDuration').value);
+    const videoFps = parseInt(document.getElementById('videoFps').value);
+    
+    showAlert(`Generating video from ${canvasData.cumulativeFrames.length} captured frames...`, 'info');
+    
+    // Disable the generate video button during processing
+    const generateBtn = document.getElementById('generateVideoBtn');
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
+    
+    // Show progress with detailed tracking
+    showVideoGenerationProgressWithPercent(0);
+    
+    // Create a video recorder for manual generation
+    const videoRecorder = new VideoRecorder({
+        videoDuration: videoDuration,
+        segmentCount: canvasData.cumulativeFrames.length,
+        canvas: document.getElementById('drawingCanvas'),
+        frameRate: videoFps,
+        timeCompression: true,
+        isCumulative: true
+    });
+    
+    // Set the captured frames directly
+    videoRecorder.capturedFrames = [...canvasData.cumulativeFrames];
+    
+    // Generate video from existing frames with progress tracking
+    videoRecorder.finalizeWithProgress((progress) => {
+        showVideoGenerationProgressWithPercent(progress);
+    }).then((videoUrl) => {
+        showVideoGenerationProgressWithPercent(100);
+        
+        setTimeout(() => {
+            showVideoGenerationProgress(false);
+            
+            if (videoUrl) {
+                showVideoResults(videoUrl);
+                showAlert('Video generated successfully!', 'success');
+            } else {
+                console.warn('Video generation failed');
+                showAlert('Video generation failed', 'danger');
+            }
+            
+            // Re-enable the generate video button
+            if (generateBtn) {
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-video"></i> Generate Video';
+            }
+        }, 500);
+        
+    }).catch((error) => {
+        console.error('Video generation error:', error);
+        showVideoGenerationProgress(false);
+        showAlert('Video generation failed: ' + error.message, 'danger');
+        
+        // Re-enable the generate video button
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-video"></i> Generate Video';
+        }
+    });
 }
 
 function clearVideoResults() {
@@ -2088,6 +2157,66 @@ class VideoRecorder {
         }
     }
     
+    async finalizeWithProgress(progressCallback) {
+        this.stop();
+        
+        if (this.capturedFrames.length === 0) {
+            console.warn('No frames captured for video');
+            return null;
+        }
+        
+        console.log(`Creating ${this.isCumulative ? 'cumulative' : 'time-compressed'} video from ${this.capturedFrames.length} frames`);
+        
+        try {
+            // Create a temporary canvas for video generation
+            const videoCanvas = document.createElement('canvas');
+            const ctx = videoCanvas.getContext('2d');
+            
+            // Set canvas size to match original
+            videoCanvas.width = this.canvas.width;
+            videoCanvas.height = this.canvas.height;
+            
+            // Create video stream from temporary canvas
+            const stream = videoCanvas.captureStream(this.frameRate);
+            
+            // Set up MediaRecorder
+            const mimeType = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: mimeType,
+                videoBitsPerSecond: 2500000
+            });
+            
+            const recordedChunks = [];
+            
+            return new Promise((resolve) => {
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const videoBlob = new Blob(recordedChunks, { type: mimeType });
+                    const videoUrl = URL.createObjectURL(videoBlob);
+                    console.log(`${this.isCumulative ? 'Cumulative' : 'Time-compressed'} video created: ${(videoBlob.size / 1024 / 1024).toFixed(2)} MB`);
+                    resolve(videoUrl);
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                
+                // Play back frames at the correct timing with progress tracking
+                this.playbackFramesWithProgress(videoCanvas, ctx, progressCallback).then(() => {
+                    mediaRecorder.stop();
+                });
+            });
+            
+        } catch (error) {
+            console.error('Error creating time-compressed video:', error);
+            return null;
+        }
+    }
+    
     async playbackFrames(videoCanvas, ctx) {
         const frameInterval = 1000 / this.frameRate; // ms between frames
         const totalFrames = this.totalFramesNeeded;
@@ -2112,6 +2241,38 @@ class VideoRecorder {
         }
         
         console.log('Frame playback completed');
+    }
+    
+    async playbackFramesWithProgress(videoCanvas, ctx, progressCallback) {
+        const frameInterval = 1000 / this.frameRate; // ms between frames
+        const totalFrames = this.totalFramesNeeded;
+        
+        // Calculate how to distribute captured frames across target duration
+        const frameStep = this.capturedFrames.length / totalFrames;
+        
+        console.log(`Playing back ${totalFrames} frames over ${this.videoDuration}s with progress tracking`);
+        
+        for (let i = 0; i < totalFrames; i++) {
+            // Calculate which captured frame to use
+            const capturedFrameIndex = Math.floor(i * frameStep);
+            const frameIndex = Math.min(capturedFrameIndex, this.capturedFrames.length - 1);
+            
+            // Load and draw the frame
+            await this.drawFrameToCanvas(ctx, this.capturedFrames[frameIndex]);
+            
+            // Update progress
+            const progress = ((i + 1) / totalFrames) * 100;
+            if (progressCallback) {
+                progressCallback(progress);
+            }
+            
+            // Wait for next frame timing
+            if (i < totalFrames - 1) {
+                await new Promise(resolve => setTimeout(resolve, frameInterval));
+            }
+        }
+        
+        console.log('Frame playback with progress completed');
     }
     
     drawFrameToCanvas(ctx, dataURL) {
@@ -2195,6 +2356,33 @@ function showVideoGenerationProgress(show) {
     }
 }
 
+function showVideoGenerationProgressWithPercent(progress) {
+    const videoProgressContainer = document.getElementById('videoProgressContainer');
+    const videoProgressBar = document.getElementById('videoProgressBar');
+    const videoProgressText = document.getElementById('videoProgressText');
+    const canvasProgressBars = document.getElementById('canvasProgressBars');
+    
+    // Show main progress bars container
+    if (canvasProgressBars) {
+        canvasProgressBars.style.display = 'block';
+    }
+    
+    if (videoProgressContainer) {
+        videoProgressContainer.style.display = 'block';
+    }
+    
+    if (videoProgressBar) {
+        videoProgressBar.style.width = `${progress}%`;
+        videoProgressBar.setAttribute('aria-valuenow', progress);
+        // Remove animation classes for precise progress
+        videoProgressBar.classList.remove('progress-bar-animated');
+    }
+    
+    if (videoProgressText) {
+        videoProgressText.textContent = `${Math.round(progress)}%`;
+    }
+}
+
 function resetProgressBars() {
     const drawingProgressBar = document.getElementById('drawingProgressBar');
     const videoProgressBar = document.getElementById('videoProgressBar');
@@ -2254,7 +2442,7 @@ function showVideoResults(videoUrl) {
         canvasData.videoResults.push(videoInfo);
     }
     
-    // Hide the video placeholder and show the video container
+    // Always hide the video placeholder and show the video container
     const videoPlaceholder = document.getElementById('videoPlaceholder');
     const videoContainer = document.getElementById('videoResultContainer');
     
@@ -2264,10 +2452,17 @@ function showVideoResults(videoUrl) {
     
     if (videoContainer) {
         videoContainer.style.display = 'block';
+        
+        // Update the video directly in the existing container
+        const existingVideo = videoContainer.querySelector('video');
+        if (existingVideo) {
+            existingVideo.src = videoUrl;
+            existingVideo.load();
+        } else {
+            // Create or update video results area to show the cumulative video
+            updateVideoResultsDisplay();
+        }
     }
-    
-    // Create or update video results area to show the cumulative video
-    updateVideoResultsDisplay();
     
     console.log(`Updated cumulative video with ${videoInfo.frameCount} total frames`);
 }
