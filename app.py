@@ -183,11 +183,23 @@ def preview_video(file_id):
 @app.route('/segmentation/<file_id>')
 def get_segmentation(file_id):
     status = processing_status.get(file_id, {'status': 'not_found'})
-    if status['mode'] == 'segmentation':
-        output_files = status['output_files']
-        return jsonify({'output_files': output_files})
+    if status.get('mode') == 'segmentation' and status.get('status') == 'completed':
+        output_files = status.get('output_files', [])
+        
+        # Verify files actually exist
+        existing_files = []
+        for filename in output_files:
+            file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+            if os.path.exists(file_path):
+                existing_files.append(filename)
+        
+        return jsonify({
+            'output_files': existing_files,
+            'total_files': len(existing_files),
+            'status': 'completed'
+        })
     else:
-        return jsonify({'error': 'Segmentation not available'}), 404
+        return jsonify({'error': 'Segmentation not available', 'status': status.get('status', 'unknown')}), 404
 
 @app.route('/outputs/<filename>')
 def serve_output_file(filename):

@@ -418,22 +418,31 @@ function showSegmentationResults(fileId) {
             const resultsSection = document.getElementById('segmentationResults');
             const imagesContainer = document.getElementById('segmentationImages');
             
-            // Clear previous results only if not preserving canvas state
-            if (!canvasData.preserveCanvasState) {
-                imagesContainer.innerHTML = '';
-            } else {
-                // Only clear image cards when preserving state, keep canvas container
-                const existingCards = imagesContainer.querySelectorAll('.col-md-4, .col-sm-6');
-                existingCards.forEach(card => card.remove());
-                console.log('Cleared only image cards, preserving canvas container');
+            // Smart cleanup: preserve canvas container position when preserving state
+            let canvasContainer = null;
+            if (canvasData.preserveCanvasState) {
+                // Save the canvas container before clearing
+                canvasContainer = imagesContainer.querySelector('.canvas-container');
+                if (canvasContainer) {
+                    canvasContainer.remove(); // Temporarily remove it
+                    console.log('Temporarily removed canvas container to preserve position');
+                }
             }
+            
+            // Clear all content to ensure proper positioning
+            imagesContainer.innerHTML = '';
+            console.log('Cleared all content for new segmentation with proper positioning');
             
             // Add images
             const imageFiles = data.output_files.filter(f => f.endsWith('.png'));
             const jsonFile = data.output_files.find(f => f.endsWith('.json'));
             
-            // Add timestamp to prevent caching
+            // Add strong cache-busting with multiple parameters
             const timestamp = new Date().getTime();
+            const randomId = Math.random().toString(36).substring(2, 15);
+            const sessionId = Math.random().toString(36).substring(2, 8);
+            
+            console.log(`Loading segmentation images with cache-busting: t=${timestamp}, r=${randomId}`);
             
             imageFiles.forEach((filename, index) => {
                 const col = document.createElement('div');
@@ -443,10 +452,43 @@ function showSegmentationResults(fileId) {
                 card.className = 'card';
                 
                 const img = document.createElement('img');
-                img.src = `/outputs/${filename}?t=${timestamp}`;
+                // Use multiple cache-busting parameters and force reload
+                img.src = `/outputs/${filename}?t=${timestamp}&r=${randomId}&s=${sessionId}&v=${index}`;
                 img.className = 'card-img-top';
                 img.style.height = '200px';
                 img.style.objectFit = 'cover';
+                
+                // Force browser to not use cache
+                img.crossOrigin = 'anonymous';
+                
+                // Enhanced error handling with multiple retry attempts
+                let retryCount = 0;
+                const maxRetries = 3;
+                
+                img.onerror = function() {
+                    retryCount++;
+                    console.error(`Failed to load image (attempt ${retryCount}):`, filename);
+                    
+                    if (retryCount <= maxRetries) {
+                        const newTimestamp = new Date().getTime();
+                        const newRandom = Math.random().toString(36).substring(2, 15);
+                        this.src = `/outputs/${filename}?t=${newTimestamp}&r=${newRandom}&retry=${retryCount}&nocache=1`;
+                        console.log(`Retrying image load (${retryCount}/${maxRetries}):`, this.src);
+                    } else {
+                        console.error(`Failed to load image after ${maxRetries} attempts:`, filename);
+                        // Show placeholder or error message
+                        this.style.backgroundColor = '#f8f9fa';
+                        this.style.border = '2px dashed #dee2e6';
+                        this.alt = 'Failed to load image';
+                    }
+                };
+                
+                img.onload = function() {
+                    console.log('Successfully loaded updated image:', filename);
+                    // Force a repaint to ensure image is displayed
+                    this.style.opacity = '0.99';
+                    setTimeout(() => { this.style.opacity = '1'; }, 10);
+                };
                 
                 const cardBody = document.createElement('div');
                 cardBody.className = 'card-body p-2';
@@ -461,15 +503,17 @@ function showSegmentationResults(fileId) {
                     title.textContent = 'Colored Segments';
                 } else if (filename.includes('mean_colors')) {
                     title.textContent = 'Average Colors';
-                    // Store the mean color image for canvas
-                    const newMeanColorImage = `/outputs/${filename}?t=${timestamp}`;
+                    // Store the mean color image for canvas with enhanced cache-busting
+                    const newMeanColorImage = `/outputs/${filename}?t=${timestamp}&r=${randomId}&s=${sessionId}&canvas=1`;
                     
                     // Only update mean color image if we're not preserving canvas state
                     if (!canvasData.preserveCanvasState) {
                         canvasData.meanColorImage = newMeanColorImage;
+                        console.log('Updated mean color image for canvas:', newMeanColorImage);
                     } else {
                         // Store new image for potential future use but don't replace current
                         canvasData.newMeanColorImage = newMeanColorImage;
+                        console.log('Stored new mean color image for future use:', newMeanColorImage);
                     }
                 }
                 
@@ -478,6 +522,16 @@ function showSegmentationResults(fileId) {
                 card.appendChild(cardBody);
                 col.appendChild(card);
                 imagesContainer.appendChild(col);
+                
+                // Force DOM update and ensure visibility
+                console.log('Appended image card to container:', filename);
+                
+                // Ensure the image card is visible
+                col.style.display = 'block';
+                col.style.opacity = '1';
+                
+                // Force a reflow to ensure the DOM is updated
+                col.offsetHeight;
             });
             
             // Add segment information if JSON file exists
@@ -512,18 +566,17 @@ function showSegmentationResults(fileId) {
                     infoBody.appendChild(summary);
                     
                     // Handle canvas container creation or preservation
-                    let canvasContainer;
-                    const existingCanvasContainer = document.querySelector('.canvas-container');
+                    let canvasContainerToUse;
                     
-                    if (canvasData.preserveCanvasState && existingCanvasContainer) {
-                        // Preserve existing canvas container and just update the summary
-                        canvasContainer = existingCanvasContainer;
-                        console.log('Preserving existing canvas container');
+                    if (canvasData.preserveCanvasState && canvasContainer) {
+                        // Use the saved canvas container from earlier
+                        canvasContainerToUse = canvasContainer;
+                        console.log('Using preserved canvas container');
                     } else {
                         // Create new interactive canvas section BEFORE the table
-                        canvasContainer = document.createElement('div');
-                        canvasContainer.className = 'mb-4 p-3 border rounded bg-light canvas-container';
-                        canvasContainer.innerHTML = `
+                        canvasContainerToUse = document.createElement('div');
+                        canvasContainerToUse.className = 'mb-4 p-3 border rounded bg-light canvas-container';
+                        canvasContainerToUse.innerHTML = `
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h6 class="mb-0"><i class="fas fa-paint-brush"></i> Interactive Drawing & Video Results</h6>
                                 <div class="d-flex align-items-center">
@@ -633,10 +686,8 @@ function showSegmentationResults(fileId) {
                         `;
                     }
                     
-                    // Only append if it's a new container
-                    if (!canvasData.preserveCanvasState || !existingCanvasContainer) {
-                        infoBody.appendChild(canvasContainer);
-                    }
+                    // Always append the canvas container (either preserved or new)
+                    infoBody.appendChild(canvasContainerToUse);
                     
                     // Initialize interactive canvas AFTER creating the elements
                     // Only initialize if not preserving existing canvas state
@@ -725,8 +776,51 @@ function showSegmentationResults(fileId) {
                 });
             }
             
+            // Ensure results section is visible
             resultsSection.style.display = 'block';
+            
+            // Force visibility of the images container
+            if (imagesContainer) {
+                imagesContainer.style.display = 'block';
+                imagesContainer.style.visibility = 'visible';
+                console.log('Images container made visible, children count:', imagesContainer.children.length);
+                
+                // Log all image cards for debugging
+                const imageCards = imagesContainer.querySelectorAll('.col-md-4, .col-sm-6');
+                console.log('Image cards found:', imageCards.length);
+                imageCards.forEach((card, index) => {
+                    console.log(`Card ${index}:`, card.style.display, card.style.opacity);
+                    // Ensure each card is visible
+                    card.style.display = 'block';
+                    card.style.opacity = '1';
+                });
+            }
+            
+            // Scroll to results if not preserving canvas state
+            if (!canvasData.preserveCanvasState) {
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
+            }
+            
             resetSegmentButton();
+            
+            // Show success message
+            if (canvasData.preserveCanvasState) {
+                showAlert('Segmentation updated successfully while preserving your drawing!', 'success');
+            } else {
+                showAlert('Segmentation completed successfully!', 'success');
+            }
+            
+            // Force a final DOM refresh
+            setTimeout(() => {
+                console.log('Final DOM check - images container children:', imagesContainer?.children.length);
+                if (imagesContainer) {
+                    // Force repaint
+                    imagesContainer.style.transform = 'translateZ(0)';
+                    setTimeout(() => {
+                        imagesContainer.style.transform = '';
+                    }, 10);
+                }
+            }, 100);
         }
     })
     .catch(error => {

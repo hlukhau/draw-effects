@@ -585,13 +585,22 @@ class DrawingEffectGenerator:
         if progress_callback:
             progress_callback(100, f"Segmentation completed! Found {len(segment_info)} segments.")
         
+        # Post-process cleanup: now that new files are created, we can safely clean up old ones
+        self._post_process_cleanup(output_dir, file_id, color_threshold)
+        
         return output_files
     
     def _cleanup_old_segmentation_files(self, output_dir, file_id):
         """Remove old segmentation files for this file_id to prevent confusion"""
         import glob
         
-        # Patterns to match old segmentation files
+        # CONSERVATIVE CLEANUP STRATEGY:
+        # Don't remove any files during segmentation process to prevent UI from losing content
+        # Only clean up when we have excessive files (more than 20 files = 5 complete sets)
+        # This ensures the UI always has something to display during re-segmentation
+        
+        # Get all existing segmentation files for this file_id
+        all_files = []
         patterns = [
             f"{file_id}_*_original_t*.png",
             f"{file_id}_*_segments_t*.png", 
@@ -600,12 +609,84 @@ class DrawingEffectGenerator:
         ]
         
         for pattern in patterns:
-            files_to_remove = glob.glob(os.path.join(output_dir, pattern))
+            files_found = glob.glob(os.path.join(output_dir, pattern))
+            all_files.extend(files_found)
+        
+        # Only cleanup if we have excessive files (more than 20 files = 5 complete sets)
+        # This is much more conservative to prevent UI flickering
+        if len(all_files) > 20:
+            # Sort by modification time and keep only the 12 most recent files (3 complete sets)
+            all_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            files_to_remove = all_files[12:]  # Remove older files beyond the 3 most recent sets
+            
             for file_path in files_to_remove:
                 try:
                     os.remove(file_path)
                 except OSError:
                     pass  # Ignore errors if file doesn't exist or can't be removed
+    
+    def _post_process_cleanup(self, output_dir, file_id, current_threshold):
+        """
+        Clean up old segmentation files AFTER new ones are successfully created
+        This prevents UI from losing content during re-segmentation
+        """
+        import glob
+        
+        # Get all existing segmentation files for this file_id
+        all_files = []
+        patterns = [
+            f"{file_id}_*_original_t*.png",
+            f"{file_id}_*_segments_t*.png", 
+            f"{file_id}_*_mean_colors_t*.png",
+            f"{file_id}_*_segment_info_t*.json"
+        ]
+        
+        for pattern in patterns:
+            files_found = glob.glob(os.path.join(output_dir, pattern))
+            all_files.extend(files_found)
+        
+        # Group files by threshold value to keep the most recent ones
+        threshold_groups = {}
+        current_files = []  # Files with current threshold
+        
+        for file_path in all_files:
+            filename = os.path.basename(file_path)
+            # Extract threshold from filename (format: *_t{threshold}.*)
+            import re
+            threshold_match = re.search(r'_t(\d+)\.', filename)
+            if threshold_match:
+                threshold = int(threshold_match.group(1))
+                if threshold == current_threshold:
+                    current_files.append(file_path)
+                else:
+                    if threshold not in threshold_groups:
+                        threshold_groups[threshold] = []
+                    threshold_groups[threshold].append(file_path)
+        
+        # Keep current threshold files and the 2 most recent other threshold sets
+        files_to_keep = current_files.copy()
+        
+        # Sort threshold groups by modification time and keep the 2 most recent
+        if threshold_groups:
+            # Get the most recent file from each threshold group to determine recency
+            threshold_recency = []
+            for threshold, files in threshold_groups.items():
+                most_recent_time = max(os.path.getmtime(f) for f in files)
+                threshold_recency.append((most_recent_time, threshold, files))
+            
+            # Sort by recency and keep the 2 most recent threshold sets
+            threshold_recency.sort(reverse=True)
+            for _, threshold, files in threshold_recency[:2]:
+                files_to_keep.extend(files)
+        
+        # Remove files that are not in the keep list
+        files_to_remove = [f for f in all_files if f not in files_to_keep]
+        
+        for file_path in files_to_remove:
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass  # Ignore errors if file doesn't exist or can't be removed
     
     def _compute_segment_average_colors(self, image, segments):
         """
