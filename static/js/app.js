@@ -429,8 +429,9 @@ function showSegmentationResults(fileId) {
                 }
             }
             
-            // Clear all content to ensure proper positioning
+            // Clear all content to ensure proper positioning with flexbox
             imagesContainer.innerHTML = '';
+            imagesContainer.className = 'd-flex flex-nowrap justify-content-between';
             console.log('Cleared all content for new segmentation with proper positioning');
             
             // Add images
@@ -446,7 +447,7 @@ function showSegmentationResults(fileId) {
             
             imageFiles.forEach((filename, index) => {
                 const col = document.createElement('div');
-                col.className = 'col-md-4 col-sm-6 mb-3';
+                col.className = 'flex-fill mx-2';
                 
                 const card = document.createElement('div');
                 card.className = 'card';
@@ -871,6 +872,8 @@ function initializeInteractiveCanvas(fileId) {
     
     // Initialize buttons and selectors
     document.getElementById('drawAllBtn').addEventListener('click', drawAllSegments);
+    document.getElementById('drawLargeBtn').addEventListener('click', drawLargeFragments);
+    document.getElementById('drawMediumBtn').addEventListener('click', drawMediumFragments);
     document.getElementById('drawSmallBtn').addEventListener('click', drawSmallFragments);
     document.getElementById('stopDrawingBtn').addEventListener('click', stopDrawingAll);
     document.getElementById('clearCanvasBtn').addEventListener('click', clearCanvas);
@@ -923,6 +926,8 @@ function updateSegmentInfoOnly(fileId) {
     
     // Re-initialize button event listeners if needed
     const drawAllBtn = document.getElementById('drawAllBtn');
+    const drawLargeBtn = document.getElementById('drawLargeBtn');
+    const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
     const stopBtn = document.getElementById('stopDrawingBtn');
     const clearBtn = document.getElementById('clearCanvasBtn');
@@ -931,6 +936,14 @@ function updateSegmentInfoOnly(fileId) {
     if (drawAllBtn) {
         drawAllBtn.replaceWith(drawAllBtn.cloneNode(true));
         document.getElementById('drawAllBtn').addEventListener('click', drawAllSegments);
+    }
+    if (drawLargeBtn) {
+        drawLargeBtn.replaceWith(drawLargeBtn.cloneNode(true));
+        document.getElementById('drawLargeBtn').addEventListener('click', drawLargeFragments);
+    }
+    if (drawMediumBtn) {
+        drawMediumBtn.replaceWith(drawMediumBtn.cloneNode(true));
+        document.getElementById('drawMediumBtn').addEventListener('click', drawMediumFragments);
     }
     if (drawSmallBtn) {
         drawSmallBtn.replaceWith(drawSmallBtn.cloneNode(true));
@@ -1009,6 +1022,8 @@ function stopDrawingAll() {
     // Hide stop button, show draw buttons
     const stopBtn = document.getElementById('stopDrawingBtn');
     const drawAllBtn = document.getElementById('drawAllBtn');
+    const drawLargeBtn = document.getElementById('drawLargeBtn');
+    const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
     const progressDiv = document.getElementById('drawingProgress');
     
@@ -1017,6 +1032,16 @@ function stopDrawingAll() {
         drawAllBtn.disabled = false;
         drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
         drawAllBtn.style.display = 'inline-block';
+    }
+    if (drawLargeBtn) {
+        drawLargeBtn.disabled = false;
+        drawLargeBtn.innerHTML = '<i class="fas fa-expand"></i> Large Fragments';
+        drawLargeBtn.style.display = 'inline-block';
+    }
+    if (drawMediumBtn) {
+        drawMediumBtn.disabled = false;
+        drawMediumBtn.innerHTML = '<i class="fas fa-circle"></i> Medium Fragments';
+        drawMediumBtn.style.display = 'inline-block';
     }
     if (drawSmallBtn) {
         drawSmallBtn.disabled = false;
@@ -1406,6 +1431,100 @@ function drawSmallFragments() {
     drawSegmentsWithVideo(sortedSmallSegments, 'small fragments', videoDuration, videoFps, strokeDensity);
 }
 
+function drawLargeFragments() {
+    if (!canvasData.segmentInfo || !currentFileId) {
+        showAlert('No segment data available', 'danger');
+        return;
+    }
+    
+    // Get current parameter values
+    const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
+    const videoDuration = parseInt(document.getElementById('videoDuration').value);
+    const videoFps = parseInt(document.getElementById('videoFps').value);
+
+    // Calculate average pixel count
+    const totalPixels = canvasData.segmentInfo.segments.reduce((sum, segment) => sum + segment.pixel_count, 0);
+    const averagePixels = totalPixels / canvasData.segmentInfo.segments.length;
+    const largeThreshold = averagePixels * 10;
+    
+    console.log(`Average pixels per segment: ${averagePixels.toFixed(0)}`);
+    console.log(`Large segment threshold (10x average): ${largeThreshold.toFixed(0)}`);
+    
+    // Filter only large segments (those with more than 10x average pixels)
+    const largeSegments = canvasData.segmentInfo.segments.filter(segment => segment.pixel_count > largeThreshold);
+    
+    // Sort large segments by pixel count (largest first)
+    const sortedLargeSegments = largeSegments.sort((a, b) => b.pixel_count - a.pixel_count);
+    
+    console.log(`Total segments: ${canvasData.segmentInfo.segments.length}`);
+    console.log(`Large segments to draw: ${sortedLargeSegments.length}`);
+    console.log(`Small/medium segments excluded: ${canvasData.segmentInfo.segments.length - sortedLargeSegments.length}`);
+    
+    if (sortedLargeSegments.length === 0) {
+        showAlert('No large fragments found to draw', 'warning');
+        return;
+    }
+    
+    showAlert(`Drawing ${sortedLargeSegments.length} large fragments (excluding ${canvasData.segmentInfo.segments.length - sortedLargeSegments.length} smaller segments)`, 'info');
+    
+    // Reset interruption flag
+    canvasData.drawingInterrupted = false;
+    canvasData.isDrawingAll = true;
+    
+    drawSegmentsWithVideo(sortedLargeSegments, 'large fragments', videoDuration, videoFps, strokeDensity);
+}
+
+function drawMediumFragments() {
+    if (!canvasData.segmentInfo || !currentFileId) {
+        showAlert('No segment data available', 'danger');
+        return;
+    }
+    
+    // Get current parameter values
+    const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
+    const videoDuration = parseInt(document.getElementById('videoDuration').value);
+    const videoFps = parseInt(document.getElementById('videoFps').value);
+
+    // Calculate average pixel count and thresholds
+    const totalPixels = canvasData.segmentInfo.segments.reduce((sum, segment) => sum + segment.pixel_count, 0);
+    const averagePixels = totalPixels / canvasData.segmentInfo.segments.length;
+    const largeThreshold = averagePixels * 10;  // 10x больше среднего
+    const smallThreshold = averagePixels / 2;   // 2x меньше среднего
+    
+    console.log(`Average pixels per segment: ${averagePixels.toFixed(0)}`);
+    console.log(`Large segment threshold (10x average): ${largeThreshold.toFixed(0)}`);
+    console.log(`Small segment threshold (0.5x average): ${smallThreshold.toFixed(0)}`);
+    
+    // Filter medium segments (between small and large thresholds)
+    const mediumSegments = canvasData.segmentInfo.segments.filter(segment => 
+        segment.pixel_count > smallThreshold && segment.pixel_count <= largeThreshold
+    );
+    
+    // Sort medium segments by pixel count (largest first)
+    const sortedMediumSegments = mediumSegments.sort((a, b) => b.pixel_count - a.pixel_count);
+    
+    const largeCount = canvasData.segmentInfo.segments.filter(s => s.pixel_count > largeThreshold).length;
+    const smallCount = canvasData.segmentInfo.segments.filter(s => s.pixel_count <= smallThreshold).length;
+    
+    console.log(`Total segments: ${canvasData.segmentInfo.segments.length}`);
+    console.log(`Medium segments to draw: ${sortedMediumSegments.length}`);
+    console.log(`Large segments excluded: ${largeCount}`);
+    console.log(`Small segments excluded: ${smallCount}`);
+    
+    if (sortedMediumSegments.length === 0) {
+        showAlert('No medium fragments found to draw', 'warning');
+        return;
+    }
+    
+    showAlert(`Drawing ${sortedMediumSegments.length} medium fragments (excluding ${largeCount} large and ${smallCount} small segments)`, 'info');
+    
+    // Reset interruption flag
+    canvasData.drawingInterrupted = false;
+    canvasData.isDrawingAll = true;
+    
+    drawSegmentsWithVideo(sortedMediumSegments, 'medium fragments', videoDuration, videoFps, strokeDensity);
+}
+
 function drawSegmentsWithVideo(sortedSegments, description, videoDuration, videoFps, strokeDensity) {
     
     // Show progress and update buttons
@@ -1413,6 +1532,8 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     const currentSegmentSpan = document.getElementById('currentDrawingSegment');
     const progressTextSpan = document.getElementById('drawingProgressText');
     const drawAllBtn = document.getElementById('drawAllBtn');
+    const drawLargeBtn = document.getElementById('drawLargeBtn');
+    const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
     const stopBtn = document.getElementById('stopDrawingBtn');
     
@@ -1420,6 +1541,14 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     if (drawAllBtn) {
         drawAllBtn.disabled = true;
         drawAllBtn.style.display = 'none';
+    }
+    if (drawLargeBtn) {
+        drawLargeBtn.disabled = true;
+        drawLargeBtn.style.display = 'none';
+    }
+    if (drawMediumBtn) {
+        drawMediumBtn.disabled = true;
+        drawMediumBtn.style.display = 'none';
     }
     if (drawSmallBtn) {
         drawSmallBtn.disabled = true;
@@ -1475,6 +1604,16 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
                 drawAllBtn.disabled = false;
                 drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
                 drawAllBtn.style.display = 'inline-block';
+            }
+            if (drawLargeBtn) {
+                drawLargeBtn.disabled = false;
+                drawLargeBtn.innerHTML = '<i class="fas fa-expand"></i> Large Fragments';
+                drawLargeBtn.style.display = 'inline-block';
+            }
+            if (drawMediumBtn) {
+                drawMediumBtn.disabled = false;
+                drawMediumBtn.innerHTML = '<i class="fas fa-circle"></i> Medium Fragments';
+                drawMediumBtn.style.display = 'inline-block';
             }
             if (drawSmallBtn) {
                 drawSmallBtn.disabled = false;
