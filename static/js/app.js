@@ -1544,6 +1544,19 @@ function drawPencilStroke(ctx, stroke) {
 }
 
 async function drawBrushSprite(ctx, stroke, brushConfig) {
+    if (stroke.points.length === 0) return;
+    
+    // Calculate sprite size based on stroke width
+    let originalSize = stroke.width || 4;
+    let baseSize = originalSize;
+    
+    // If size is smaller than 3, use pencil rendering instead of sprites
+    if (originalSize < 3) {
+        console.log(`🎨 Stroke size ${originalSize}px (<3), using pencil rendering instead of sprites`);
+        drawPencilStroke(ctx, stroke);
+        return;
+    }
+    
     // Load brush sprite if not cached
     const spriteImage = await loadBrushSprite(brushConfig.spriteUrl);
     if (!spriteImage) {
@@ -1552,8 +1565,6 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         return;
     }
     
-    if (stroke.points.length === 0) return;
-    
     // Parse stroke color
     const color = parseColor(stroke.color);
     if (!color) {
@@ -1561,16 +1572,9 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         return;
     }
     
-    // Debug: Log color information
-    console.log(`🎨 Drawing brush sprite with color:`, stroke.color, `-> RGB(${color.r}, ${color.g}, ${color.b})`);
-    console.log(`🎨 Sprite loaded:`, spriteImage.width, 'x', spriteImage.height, 'pixels');
-    
-    // Calculate sprite size based on stroke width with randomization
-    let baseSize = stroke.width || 4;
-    
-    // If sprite is smaller than 6 points, set minimum to 6 points
+    // Ensure minimum sprite size for visibility (but stay with sprites)
     if (baseSize < 6) {
-        console.log(`🎨 Sprite too small (${baseSize}px), setting minimum to 6px`);
+        console.log(`🎨 Sprite size ${originalSize}px (<6), setting minimum to 6px`);
         baseSize = 6;
     }
     
@@ -1586,7 +1590,8 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
     } else {
         // Multiple points - draw sprites along the path with direction-based rotation
         const totalDistance = calculateStrokeDistance(stroke.points);
-        const baseSpacing = baseSize * 1.2; // Base spacing between sprites
+        // Use original size for spacing calculation to maintain proper density
+        const baseSpacing = originalSize * 1.2; // Base spacing between sprites
         
         let currentDistance = 0;
         let spriteIndex = 0;
@@ -1631,6 +1636,7 @@ async function loadBrushSprite(spriteUrl) {
         const img = new Image();
         img.onload = function() {
             canvasData.brushSprites[spriteUrl] = img;
+            console.log(`🎨 Sprite loaded and cached:`, img.width, 'x', img.height, 'pixels');
             resolve(img);
         };
         img.onerror = function() {
@@ -1911,6 +1917,10 @@ function startFlashAnimation() {
         return;
     }
     
+    // Clear existing frames before flash animation to ensure correct video duration
+    console.log(`Clearing ${canvasData.cumulativeFrames ? canvasData.cumulativeFrames.length : 0} existing frames before flash animation`);
+    canvasData.cumulativeFrames = [];
+    
     const lightReliefBtn = document.getElementById('lightReliefBtn');
     
     // Call backend to generate flash animation frames
@@ -1969,26 +1979,14 @@ function playFlashAnimationWithCapture(frames) {
         lightReliefBtn.innerHTML = '<i class="fas fa-play"></i> Анимация...';
     }
     
+    console.log(`Starting flash animation with ${frames.length} frames`);
+    console.log(`Current cumulativeFrames count: ${canvasData.cumulativeFrames ? canvasData.cumulativeFrames.length : 'undefined'}`);
+    
     function playNextFrame() {
         if (currentFrame >= frames.length) {
             // Animation complete
             console.log('Flash animation completed');
-            
-            // Add all frames to video
-            frames.forEach((frame, index) => {
-                const img = new Image();
-                img.onload = function() {
-                    // Capture frame for video
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // Add frame to video frames
-                    if (canvasData.cumulativeFrames) {
-                        canvasData.cumulativeFrames.push(canvas.toDataURL('image/png'));
-                    }
-                };
-                img.src = 'data:image/jpeg;base64,' + frame.image_data;
-            });
+            console.log(`Total frames added to video: ${canvasData.cumulativeFrames ? canvasData.cumulativeFrames.length : 'undefined'}`);
             
             // Reset canvas to pre-effect state after animation
             setTimeout(() => {
@@ -2001,7 +1999,7 @@ function playFlashAnimationWithCapture(frames) {
                     img.src = canvasData.preEffectCanvasState;
                 }
                 
-                showAlert('Анимация "Свет-рельеф" завершена! Кадры добавлены в видео.', 'success');
+                showAlert(`Анимация "Свет-рельеф" завершена! ${frames.length} кадров добавлены в видео.`, 'success');
                 
                 // Reset button state
                 if (lightReliefBtn) {
@@ -2020,14 +2018,23 @@ function playFlashAnimationWithCapture(frames) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0);
             
-            // Add frame to video frames
+            // Add frame to video frames immediately after drawing
             if (canvasData.cumulativeFrames) {
-                canvasData.cumulativeFrames.push(canvas.toDataURL('image/png'));
+                const frameDataUrl = canvas.toDataURL('image/png');
+                canvasData.cumulativeFrames.push(frameDataUrl);
+                console.log(`Added frame ${currentFrame + 1}/${frames.length} to video (total: ${canvasData.cumulativeFrames.length})`);
+            } else {
+                console.warn('canvasData.cumulativeFrames is not initialized');
             }
             
             currentFrame++;
             
             // Schedule next frame
+            setTimeout(playNextFrame, frameDelay);
+        };
+        img.onerror = function() {
+            console.error(`Failed to load frame ${currentFrame}`);
+            currentFrame++;
             setTimeout(playNextFrame, frameDelay);
         };
         img.src = 'data:image/jpeg;base64,' + frame.image_data;

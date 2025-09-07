@@ -3,7 +3,7 @@ import uuid
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 from drawing_effects import DrawingEffectGenerator
-from flash_effect import FlashEffect
+from relief_lighting import ReliefLightingEffect
 import threading
 import json
 import numpy as np
@@ -28,8 +28,8 @@ os.makedirs('templates', exist_ok=True)
 # Store processing status
 processing_status = {}
 
-# Initialize FlashEffect instance
-flash_effect = FlashEffect()
+# Initialize ReliefLightingEffect instance
+relief_lighting = ReliefLightingEffect()
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 
@@ -481,7 +481,7 @@ def flash_animation():
         session_id = flash_effect.preprocess_image(image, relief_strength)
         
         # Генерируем все кадры анимации
-        frames, positions = flash_effect.get_animation_frames(session_id, frame_step=5)
+        frames, positions = flash_effect.get_animation_frames(session_id, frame_step=1)
         
         # Конвертируем кадры в base64
         animation_frames = []

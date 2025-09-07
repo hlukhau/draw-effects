@@ -1067,18 +1067,18 @@ class DrawingEffectGenerator:
         brush_strokes = []
         segment_color = f"#{segment_info['average_color']['r']:02x}{segment_info['average_color']['g']:02x}{segment_info['average_color']['b']:02x}"
         
-        # Calculate appropriate brush width based on area
-        base_stroke_width = max(2, int(math.sqrt(area) / 10))
+        # Calculate appropriate brush width based on area with minimum width of 6
+        base_stroke_width = max(6, int(math.sqrt(area) / 10))
         
         # Special handling for pencil and brush types (both use same stroke generation)
         if brush_type == 'pencil' or brush_type == 'brush':
             return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type)
         
         if area < 100:
-            # Very small segments: single dot or short stroke
+            # Very small segments: single dot or short stroke with minimum width 6
             brush_strokes.append({
                 'color': segment_color,
-                'width': max(2, base_stroke_width // 2),
+                'width': base_stroke_width,  # Use full width, not reduced
                 'points': [
                     {'x': int(centroid[1]), 'y': int(centroid[0])}
                 ],
@@ -1171,8 +1171,11 @@ class DrawingEffectGenerator:
             max(0, int(float(avg_color['b']) * 0.9))
         ]
         
-        # Calculate appropriate brush width based on area
-        stroke_width = max(1, int(base_stroke_width * 0.8))  # Thinner for pencil effect
+        # Calculate appropriate brush width based on area and brush type
+        if brush_type == 'brush':
+            stroke_width = base_stroke_width  # Full width for brush (minimum 6)
+        else:  # pencil
+            stroke_width = max(1, int(base_stroke_width * 0.8))  # Thinner for pencil effect
         
         # Generate primary hatching strokes along the major axis
         for i in range(num_strokes):
@@ -1313,7 +1316,11 @@ class DrawingEffectGenerator:
                             break
                 
                 if len(stroke_points) >= 2:
-                    fine_stroke_width = max(1, int(base_stroke_width * 0.3))  # Very thin strokes
+                    # Use different width based on brush type
+                    if brush_type == 'brush':
+                        fine_stroke_width = base_stroke_width  # Full width for brush
+                    else:  # pencil
+                        fine_stroke_width = max(1, int(base_stroke_width * 0.3))  # Very thin strokes for pencil
                     strokes.append({
                         'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                         'width': fine_stroke_width,
@@ -1453,7 +1460,11 @@ class DrawingEffectGenerator:
                                 break
                     
                     if len(stroke_points) >= 2:
-                        stroke_width = max(1, int(base_stroke_width * 0.7))  # Cross-hatch thickness
+                        # Use different width based on brush type
+                        if brush_type == 'brush':
+                            stroke_width = base_stroke_width  # Full width for brush
+                        else:  # pencil
+                            stroke_width = max(1, int(base_stroke_width * 0.7))  # Cross-hatch thickness for pencil
                         strokes.append({
                             'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                             'width': stroke_width,
@@ -1475,8 +1486,8 @@ class DrawingEffectGenerator:
         # Find y coordinates where the segment exists
         y_coords = np.where(np.any(mask, axis=1))[0]
         
-        # Create strokes every few pixels vertically
-        step = max(2, base_stroke_width // 2)
+        # Create strokes with step calculated for width 6
+        step = max(1, 6 // 3)
         for y in y_coords[::step]:
             # Find x range for this y coordinate
             x_coords = np.where(mask[y, :])[0]
@@ -1508,8 +1519,8 @@ class DrawingEffectGenerator:
         # Find x coordinates where the segment exists
         x_coords = np.where(np.any(mask, axis=0))[0]
         
-        # Create strokes every few pixels horizontally
-        step = max(2, base_stroke_width // 2)
+        # Create strokes with step calculated for width 6
+        step = max(1, 6 // 3)
         for x in x_coords[::step]:
             # Find y range for this x coordinate
             y_coords = np.where(mask[:, x])[0]
@@ -1582,11 +1593,27 @@ class DrawingEffectGenerator:
         strokes = []
         h, w = mask.shape
         
-        # Diagonal strokes (45 degrees)
-        for offset in range(-max(h, w), max(h, w), base_stroke_width * 3):
+        # Diagonal strokes (45 degrees) - spacing calculated for width 6
+        for offset in range(-max(h, w), max(h, w), max(1, 6)):
             points = []
             for x in range(w):
                 y = x + offset
+                if 0 <= y < h and mask[y, x]:
+                    points.append({'x': x, 'y': y})
+            
+            if len(points) > 2:
+                strokes.append({
+                    'color': color,
+                    'width': base_stroke_width,
+                    'points': points,
+                    'type': brush_type
+                })
+        
+        # Diagonal strokes (-45 degrees) for cross-hatching effect - spacing calculated for width 6
+        for offset in range(-max(h, w), max(h, w), max(1, 6)):
+            points = []
+            for x in range(w):
+                y = -x + offset + h
                 if 0 <= y < h and mask[y, x]:
                     points.append({'x': x, 'y': y})
             
