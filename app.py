@@ -208,11 +208,14 @@ def serve_output_file(filename):
 @app.route('/draw_segment', methods=['POST'])
 def draw_segment():
     try:
+        print(f"=== FLASK ENDPOINT CALLED: /draw_segment ===", flush=True)
         data = request.get_json()
+        print(f"=== Request data: {data} ===", flush=True)
         file_id = data.get('file_id')
         segment_id = data.get('segment_id')
         brush_type = data.get('brush_type', 'pencil')  # Default to pencil brush
         stroke_density = data.get('stroke_density', 1.0)  # Default density
+        print(f"=== Parsed: file_id={file_id}, segment_id={segment_id}, brush_type={brush_type}, stroke_density={stroke_density} ===", flush=True)
         
         if not file_id or segment_id is None:
             return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
@@ -234,7 +237,10 @@ def draw_segment():
         })
         
     except Exception as e:
-        print(f"Error in draw_segment: {str(e)}")  # Add logging
+        print(f"ERROR in draw_segment: {str(e)}")
+        print(f"ERROR details - file_id: {data.get('file_id')}, segment_id: {data.get('segment_id')}, brush_type: {data.get('brush_type')}")
+        import traceback
+        print(f"ERROR Full traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/detect_boundaries', methods=['POST'])

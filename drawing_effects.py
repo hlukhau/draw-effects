@@ -843,6 +843,8 @@ class DrawingEffectGenerator:
         Returns:
             List of brush stroke data for frontend rendering
         """
+        print(f"=== FUNCTION CALLED: generate_segment_brush_strokes ===", flush=True)
+        print(f"=== Parameters: segment_id={segment_id}, brush_type={brush_type}, stroke_density={stroke_density} ===", flush=True)
         import json
         import math
         from scipy import ndimage
@@ -921,12 +923,18 @@ class DrawingEffectGenerator:
         
         # Find the target segment
         target_segment = None
+        print(f"DEBUG: Searching for segment_id {segment_id} (type: {type(segment_id)})")
+        
         for segment in segments_list:
-            if segment['id'] == segment_id:
+            segment_file_id = segment.get('id')
+            print(f"DEBUG: Checking segment {segment_file_id} (type: {type(segment_file_id)}) == {segment_id} (type: {type(segment_id)})")
+            if segment_file_id == segment_id:
                 target_segment = segment
+                print(f"DEBUG: Found matching segment {segment_id}")
                 break
         
         if not target_segment:
+            print(f"DEBUG: Segment {segment_id} not found in {len(segments_list)} segments")
             # Try alternative matching strategies
             print(f"DEBUG: Direct ID match failed. Trying alternative strategies...")
             
@@ -956,15 +964,15 @@ class DrawingEffectGenerator:
             raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
         
         # Debug: Print target segment structure
-        print(f"🔍 DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
-        print(f"🔍 DEBUG: Target segment type: {type(target_segment)}")
+        print(f"DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
+        print(f"DEBUG: Target segment type: {type(target_segment)}")
         if isinstance(target_segment, dict):
-            print(f"🔍 DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
+            print(f"DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
         
         # Check if average_color exists and handle different structures
         if 'average_color' not in target_segment:
-            print(f"❌ ERROR: 'average_color' field missing from segment {segment_id}")
-            print(f"❌ ERROR: Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
+            print(f"ERROR: 'average_color' field missing from segment {segment_id}")
+            print(f"ERROR: Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
             raise Exception(f"Segment {segment_id} missing 'average_color' field. Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
         
         # Load the mean color image to get segment mask
@@ -1008,24 +1016,24 @@ class DrawingEffectGenerator:
         # Find pixels matching the segment color
         mask = np.all(mean_image == target_color, axis=2)
         
-        print(f"🔍 DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
-        print(f"🔍 DEBUG: Target color: {target_color}")
-        print(f"🔍 DEBUG: Mean image shape: {mean_image.shape}")
-        print(f"🔍 DEBUG: Mask shape: {mask.shape}")
-        print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
+        print(f"DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
+        print(f"DEBUG: Target color: {target_color}")
+        print(f"DEBUG: Mean image shape: {mean_image.shape}")
+        print(f"DEBUG: Mask shape: {mask.shape}")
+        print(f"DEBUG: Mask has any True values: {np.any(mask)}")
         
         if np.sum(mask) == 0:
-            print(f"❌ ERROR: No pixels found for segment {segment_id} with color {target_color}")
+            print(f"ERROR: No pixels found for segment {segment_id} with color {target_color}")
             return []
         
         # Analyze segment geometry and generate brush strokes with brush type
-        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
+        brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density, segment_id)
         
-        print(f"✅ Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
+        print(f"Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     
-    def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density):
+    def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density, segment_id=None):
         """
         Analyze segment geometry and create appropriate brush strokes
         
@@ -1072,7 +1080,7 @@ class DrawingEffectGenerator:
         
         # Special handling for pencil and brush types (both use same stroke generation)
         if brush_type == 'pencil' or brush_type == 'brush':
-            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type)
+            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type, segment_id)
         
         if area < 100:
             # Very small segments: single dot or short stroke
@@ -1109,24 +1117,24 @@ class DrawingEffectGenerator:
         
         return brush_strokes
     
-    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density, brush_type='pencil'):
+    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density, brush_type='pencil', segment_id=None):
         """Generate pencil hatching strokes aligned with segment's longest axis"""
         strokes = []
         
-        print(f"🎨 DEBUG: Starting pencil stroke generation")
-        print(f"🎨 DEBUG: Segment mask shape: {segment_mask.shape}")
-        print(f"🎨 DEBUG: Mask has True values: {np.any(segment_mask)}")
-        print(f"🎨 DEBUG: Total True pixels: {np.sum(segment_mask)}")
-        print(f"🎨 DEBUG: Stroke density: {stroke_density}")
+        print(f"DEBUG: Starting pencil stroke generation")
+        print(f"DEBUG: Segment mask shape: {segment_mask.shape}")
+        print(f"DEBUG: Mask has True values: {np.any(segment_mask)}")
+        print(f"DEBUG: Total True pixels (area): {np.sum(segment_mask)}")
+        print(f"DEBUG: Stroke density: {stroke_density}")
         
         # Get segment properties
         labeled_mask = measure.label(segment_mask.astype(int))
         regions = measure.regionprops(labeled_mask)
         
-        print(f"🎨 DEBUG: Found {len(regions)} regions in mask")
+        print(f"DEBUG: Found {len(regions)} regions in mask")
         
         if not regions:
-            print(f"❌ ERROR: No regions found in segment mask!")
+            print(f"ERROR: No regions found in segment mask!")
             return []
         
         props = regions[0]
@@ -1146,23 +1154,54 @@ class DrawingEffectGenerator:
         elif area < 200:
             base_spacing = max(1, int(base_stroke_width * 0.6))
             base_strokes = max(15, int(area / 8))
-        else:
+        elif area < 1000:
             base_spacing = max(1, int(base_stroke_width * 0.7))
             base_strokes = max(25, int(area / 10))
+        elif area < 5000:
+            # Large segments: fewer strokes with wider spacing for natural look
+            base_spacing = max(1, int(base_stroke_width * 1.5))
+            base_strokes = max(30, int(area / 50))
+        else:
+            # Very large segments: much fewer strokes to avoid solid fill
+            base_spacing = max(1, int(base_stroke_width * 2.0))
+            base_strokes = max(50, int(area / 100))
         
         # Apply density multiplier to increase stroke count
-        # Allow more strokes for higher density values
-        if stroke_density <= 2.0:
-            max_strokes = 100
-        elif stroke_density <= 5.0:
-            max_strokes = 250
-        else:  # stroke_density up to 10.0
-            max_strokes = 500
+        # Allow more strokes for higher density values with adaptive limits based on segment size
+        if area < 500:
+            # Small segments: conservative limits
+            if stroke_density <= 2.0:
+                max_strokes = 100
+            elif stroke_density <= 5.0:
+                max_strokes = 250
+            else:
+                max_strokes = 500
+        elif area < 2000:
+            # Medium segments: higher limits
+            if stroke_density <= 2.0:
+                max_strokes = 300
+            elif stroke_density <= 5.0:
+                max_strokes = 750
+            else:
+                max_strokes = 1500
+        else:
+            # Large segments: moderate limits to avoid solid fill
+            if stroke_density <= 2.0:
+                max_strokes = 150
+            elif stroke_density <= 5.0:
+                max_strokes = 300
+            else:
+                max_strokes = 500
         
         num_strokes = int(base_strokes * stroke_density)
         stroke_spacing = max(1, int(base_spacing / stroke_density))
         
         num_strokes = min(num_strokes, max_strokes)
+        
+        print(f"DEBUG: Segment area: {area} pixels")
+        print(f"DEBUG: Base strokes: {base_strokes}, Max strokes: {max_strokes}")
+        print(f"DEBUG: Final num_strokes: {num_strokes}")
+        print(f"DEBUG: Stroke spacing: {stroke_spacing}")
         
         # Make pencil color slightly darker for visibility
         pencil_color = [
@@ -1174,6 +1213,18 @@ class DrawingEffectGenerator:
         # Calculate appropriate brush width based on area
         stroke_width = max(1, int(base_stroke_width * 0.8))  # Thinner for pencil effect
         
+        # Get all pixel coordinates that belong to the segment for better distribution
+        segment_coords = np.where(segment_mask)
+        segment_pixels = list(zip(segment_coords[1], segment_coords[0]))  # (x, y) format
+        
+        print(f"DEBUG: Found {len(segment_pixels)} actual segment pixels")
+        print(f"DEBUG: Bbox covers area: {segment_width}x{segment_height} = {segment_width * segment_height} pixels")
+        print(f"DEBUG: Actual segment area: {len(segment_pixels)} pixels")
+        
+        if not segment_pixels:
+            print(f"ERROR: No segment pixels found!")
+            return []
+        
         # Generate primary hatching strokes along the major axis
         for i in range(num_strokes):
             # Add angle variation (±10 degrees)
@@ -1183,25 +1234,31 @@ class DrawingEffectGenerator:
             dx = np.cos(stroke_angle)
             dy = np.sin(stroke_angle)
             
-            # Find a starting point within the segment
+            # Find a starting point within the segment using actual segment pixels
             attempts = 0
             start_point = None
             
-            while attempts < 10 and start_point is None:
-                # Try different starting positions
-                if segment_width > segment_height:
-                    # For wide segments, start from left/right edges
-                    start_y = bbox[0] + np.random.random() * segment_height
-                    start_x = bbox[1] + (i / num_strokes) * segment_width + np.random.random() * stroke_spacing - stroke_spacing/2
+            while attempts < 15 and start_point is None:
+                # For large segments, use distributed sampling across all segment pixels
+                if area >= 5000:
+                    # For very large segments, sample from different regions
+                    region_idx = int((i / num_strokes) * len(segment_pixels))
+                    region_start = max(0, region_idx - len(segment_pixels) // 20)
+                    region_end = min(len(segment_pixels), region_idx + len(segment_pixels) // 20)
+                    pixel_idx = np.random.randint(region_start, region_end)
                 else:
-                    # For tall segments, start from top/bottom edges
-                    start_x = bbox[1] + np.random.random() * segment_width
-                    start_y = bbox[0] + (i / num_strokes) * segment_height + np.random.random() * stroke_spacing - stroke_spacing/2
+                    # For smaller segments, random sampling
+                    pixel_idx = np.random.randint(0, len(segment_pixels))
+                
+                start_x, start_y = segment_pixels[pixel_idx]
+                
+                # Add small random offset for natural variation
+                offset_x = (np.random.random() - 0.5) * stroke_spacing
+                offset_y = (np.random.random() - 0.5) * stroke_spacing
+                start_x += offset_x
+                start_y += offset_y
                 
                 # Ensure starting point is within bounds and in segment
-                start_x = max(bbox[1], min(bbox[3]-1, start_x))
-                start_y = max(bbox[0], min(bbox[2]-1, start_y))
-                
                 if (0 <= int(start_y) < segment_mask.shape[0] and 
                     0 <= int(start_x) < segment_mask.shape[1] and
                     segment_mask[int(start_y), int(start_x)]):
@@ -1212,37 +1269,51 @@ class DrawingEffectGenerator:
             if start_point is None:
                 continue
             
-            # Generate stroke points (2-5 points as requested)
-            num_points = np.random.randint(2, 6)
             stroke_points = []
-            
             current_x, current_y = start_point
             
-            # Calculate step size to create stroke of appropriate length
-            max_stroke_length = min(segment_width, segment_height) * 0.8
-            step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
+            # UNIFIED ALGORITHM: Same logic for all segments, only parameters differ
+            print(f"DEBUG: Segment area {area} - using UNIFIED algorithm")
             
-            for point_idx in range(num_points):
-                # Add the current point if it's within segment boundaries
+            # Calculate adaptive step size based on segment dimensions (not absolute area)
+            max_dimension = max(segment_width, segment_height)
+            base_step = max(1, max_dimension * 0.05)  # 5% of max dimension
+            
+            # Adaptive max steps based on segment dimensions
+            max_steps = min(50, max(5, int(max_dimension * 0.3)))  # 30% of max dimension, capped at 50
+            max_consecutive_misses = 3  # Allow some gaps
+            
+            # Special debugging for segment 377
+            if segment_id == 377:
+                print(f"SEGMENT 377 DEBUG:")
+                print(f"  - Segment dimensions: {segment_width} x {segment_height}")
+                print(f"  - Max dimension: {max_dimension}")
+                print(f"  - Base step: {base_step}")
+                print(f"  - Max steps: {max_steps}")
+                print(f"  - Start point: ({start_point[0]}, {start_point[1]})")
+                print(f"  - Direction: ({dx}, {dy})")
+            
+            # Generate stroke by stepping along the direction
+            consecutive_misses = 0
+            for step in range(max_steps):
                 if (0 <= int(current_y) < segment_mask.shape[0] and 
                     0 <= int(current_x) < segment_mask.shape[1] and
                     segment_mask[int(current_y), int(current_x)]):
                     stroke_points.append({'x': current_x, 'y': current_y})
+                    consecutive_misses = 0
+                else:
+                    consecutive_misses += 1
+                    if consecutive_misses > max_consecutive_misses:
+                        break
                 
-                # Move to next point along the stroke direction
-                if point_idx < num_points - 1:
-                    current_x += dx * step_size
-                    current_y += dy * step_size
-                    
-                    # Ensure we don't go outside the bounding box
-                    if (current_x < bbox[1] or current_x >= bbox[3] or
-                        current_y < bbox[0] or current_y >= bbox[2]):
-                        break
-                        
-                    if (int(current_y) >= segment_mask.shape[0] or 
-                        int(current_x) >= segment_mask.shape[1] or
-                        not segment_mask[int(current_y), int(current_x)]):
-                        break
+                current_x += dx * base_step
+                current_y += dy * base_step
+                
+                # Stop if we go completely outside the image bounds
+                if (int(current_y) >= segment_mask.shape[0] or 
+                    int(current_x) >= segment_mask.shape[1] or
+                    int(current_y) < 0 or int(current_x) < 0):
+                    break
             
             # Only add stroke if we have at least 2 points
             if len(stroke_points) >= 2:
@@ -1252,11 +1323,22 @@ class DrawingEffectGenerator:
                     'points': stroke_points,
                     'type': brush_type
                 })
+                
+                # Special debugging for segment 377
+                if segment_id == 377:
+                    print(f"  - Generated stroke with {len(stroke_points)} points")
+            elif segment_id == 377:
+                print(f"  - Stroke rejected: only {len(stroke_points)} points (need >= 2)")
         
         # Add multiple layers of fine detail strokes for maximum pencil density and realism
         if area > 50:
-            # Layer 1: Fine detail strokes (very thin)
-            fine_stroke_count = min(num_strokes, 25)
+            # Layer 1: Fine detail strokes (very thin) - adaptive count based on segment size
+            if area < 500:
+                fine_stroke_count = min(num_strokes, 25)
+            elif area < 2000:
+                fine_stroke_count = min(num_strokes, 75)
+            else:
+                fine_stroke_count = min(num_strokes, 150)
             
             for i in range(fine_stroke_count):
                 # Fine stroke angle with more variation
@@ -1323,7 +1405,12 @@ class DrawingEffectGenerator:
             
             # Layer 2: Micro detail strokes (extremely thin) for large segments
             if area > 200:
-                micro_stroke_count = min(int(area / 15), 30)
+                if area < 1000:
+                    micro_stroke_count = min(int(area / 15), 30)
+                elif area < 5000:
+                    micro_stroke_count = min(int(area / 12), 80)
+                else:
+                    micro_stroke_count = min(int(area / 10), 200)
                 
                 for i in range(micro_stroke_count):
                     # Micro stroke with high angle variation
@@ -1385,7 +1472,13 @@ class DrawingEffectGenerator:
         
         # Add cross-hatching for larger segments (more visible)
         if area > 60 and len(strokes) > 0:  # Even lower threshold for maximum cross-hatching
-            cross_hatch_count = min(len(strokes) // 1.2, 30)  # Even more cross-hatching strokes
+            # Adaptive cross-hatching count based on segment size
+            if area < 500:
+                cross_hatch_count = min(len(strokes) // 1.2, 30)
+            elif area < 2000:
+                cross_hatch_count = min(len(strokes) // 1.0, 80)
+            else:
+                cross_hatch_count = min(len(strokes) // 0.8, 200)
             
             # Add multiple layers of cross-hatching at different angles
             cross_angles = [
@@ -1461,9 +1554,23 @@ class DrawingEffectGenerator:
                             'type': brush_type
                         })
         
-        print(f"🎨 DEBUG: Pencil stroke generation completed")
-        print(f"🎨 DEBUG: Total strokes generated: {len(strokes)}")
-        print(f"🎨 DEBUG: Stroke types: {[s.get('type', 'unknown') for s in strokes[:5]]}")  # Show first 5
+        print(f"DEBUG: Pencil stroke generation completed")
+        print(f"DEBUG: Total strokes generated: {len(strokes)}")
+        print(f"DEBUG: Stroke types: {[s.get('type', 'unknown') for s in strokes[:5]]}")  # Show first 5
+        
+        # Special final statistics for segment 377
+        if segment_id == 377:
+            print(f"SEGMENT 377 FINAL STATS:")
+            print(f"  - Total strokes: {len(strokes)}")
+            if strokes:
+                stroke_lengths = [len(stroke['points']) for stroke in strokes]
+                avg_length = sum(stroke_lengths) / len(stroke_lengths)
+                max_length = max(stroke_lengths)
+                min_length = min(stroke_lengths)
+                print(f"  - Average stroke length: {avg_length:.1f} points")
+                print(f"  - Max stroke length: {max_length} points")
+                print(f"  - Min stroke length: {min_length} points")
+                print(f"  - Stroke lengths: {stroke_lengths[:10]}")  # Show first 10
         
         return strokes
     

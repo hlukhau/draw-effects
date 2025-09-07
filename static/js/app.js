@@ -548,9 +548,10 @@ function showSegmentationResults(fileId) {
                 // Use multiple cache-busting parameters and force reload
                 img.src = `/outputs/${filename}?t=${timestamp}&r=${randomId}&s=${sessionId}&v=${index}`;
                 img.className = 'card-img-top';
-                img.style.height = '200px';
-                img.style.objectFit = 'cover';
-                
+                img.style.maxHeight = '300px';
+                img.style.objectFit = 'contain';
+                img.style.width = '100%';
+
                 // Force browser to not use cache
                 img.crossOrigin = 'anonymous';
                 
@@ -1329,6 +1330,18 @@ function drawSingleSegment(segmentId) {
     
     // Get current parameter values
     const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
+    
+    // Найти информацию о сегменте для отладки
+    const segment = canvasData.segmentInfo?.segments?.find(s => s.id === segmentId);
+    if (segment) {
+        console.log(`🔍 DEBUG: Drawing segment ${segmentId}:`);
+        console.log(`📏 Segment size: ${segment.pixel_count.toLocaleString()} pixels`);
+        console.log(`🎨 Segment color: rgb(${segment.average_color.r}, ${segment.average_color.g}, ${segment.average_color.b})`);
+        console.log(`🖌️ Brush type: ${canvasData.currentBrushType}`);
+        console.log(`📊 Stroke density: ${strokeDensity}`);
+    } else {
+        console.warn(`⚠️ Segment ${segmentId} not found in segment data`);
+    }
 
     // Show loading state
     const drawBtn = document.getElementById(`drawBtn_${segmentId}`);
@@ -1352,6 +1365,28 @@ function drawSingleSegment(segmentId) {
     })
     .then(response => response.json())
     .then(data => {
+
+        console.log(`✅ Backend response for segment ${segmentId}:`, {
+            success: data.success,
+            strokes_count: data.brush_strokes?.length || 0,
+            brush_type: data.brush_type
+        });
+
+        // Анализ координат штрихов
+        if (data.brush_strokes && data.brush_strokes.length > 0) {
+            const allPoints = data.brush_strokes.flatMap(stroke => stroke.points || []);
+            if (allPoints.length > 0) {
+                const xCoords = allPoints.map(p => p.x);
+                const yCoords = allPoints.map(p => p.y);
+                console.log(`📍 Stroke coordinates range:`, {
+                    x_min: Math.min(...xCoords).toFixed(1),
+                    x_max: Math.max(...xCoords).toFixed(1),
+                    y_min: Math.min(...yCoords).toFixed(1),
+                    y_max: Math.max(...yCoords).toFixed(1),
+                    total_points: allPoints.length
+                });
+            }
+        }
         if (data.success) {
             // Apply brush strokes with enhanced visualization
             applyBrushStrokesFast(data.brush_strokes, segmentId);
@@ -1461,7 +1496,16 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d');
     
-    brushStrokes.forEach((stroke) => {
+    console.log(`🎨 DEBUG: Applying ${brushStrokes.length} strokes for segment ${segmentId}`);
+    
+    brushStrokes.forEach((stroke, index) => {
+        console.log(`🎨 DEBUG: Stroke ${index + 1}:`, {
+            type: stroke.type,
+            color: stroke.color,
+            width: stroke.width,
+            points: stroke.points?.length || 0,
+            dots: stroke.dots?.length || 0
+        });
         // Get brush type configuration
         const brushType = stroke.type || canvasData.currentBrushType;
         const brushConfig = brushTypes[brushType] || brushTypes.pencil;
@@ -1486,6 +1530,8 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
 }
 
 function drawPencilStroke(ctx, stroke) {
+    console.log(`🎨 DEBUG: Drawing pencil stroke with ${stroke.points.length} points, color: ${stroke.color}, width: ${stroke.width}`);
+    
     // Draw the actual brush stroke
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
@@ -1499,11 +1545,13 @@ function drawPencilStroke(ctx, stroke) {
     ctx.beginPath();
     if (stroke.points.length === 1) {
         // Single point - draw a dot
+        console.log(`🎨 DEBUG: Drawing single dot at (${stroke.points[0].x}, ${stroke.points[0].y})`);
         ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, 2 * Math.PI);
         ctx.fillStyle = stroke.color;
         ctx.fill();
     } else {
         // Multiple points - draw a stroke
+        console.log(`🎨 DEBUG: Drawing stroke from (${stroke.points[0].x}, ${stroke.points[0].y}) through ${stroke.points.length} points`);
         ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
         for (let i = 1; i < stroke.points.length; i++) {
             ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
