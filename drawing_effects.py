@@ -691,7 +691,7 @@ class DrawingEffectGenerator:
     
     def _compute_segment_average_colors(self, image, segments):
         """
-        Compute average color for each segment
+        Compute average color for each segment and count pixels by final color
         
         Args:
             image: Original RGB image
@@ -705,6 +705,7 @@ class DrawingEffectGenerator:
         
         segment_info = {}
         
+        # Сначала вычисляем средние цвета для всех сегментов
         for segment_id in unique_segments:
             mask = (segments == segment_id)
             segment_pixels = image[mask]
@@ -713,8 +714,32 @@ class DrawingEffectGenerator:
                 avg_color = np.mean(segment_pixels, axis=0)
                 segment_info[segment_id] = {
                     'avg_color': avg_color,
-                    'pixel_count': len(segment_pixels)
+                    'pixel_count': len(segment_pixels)  # Временно, пересчитаем ниже
                 }
+        
+        # УПРОЩЕННЫЙ ПОДХОД: Создаем mean_color изображение с округленными цветами сразу
+        # и считаем пиксели на основе этого изображения
+        mean_color_image = np.zeros_like(image, dtype=np.uint8)
+        
+        # Заполняем mean_color изображение округленными цветами
+        for segment_id, info in segment_info.items():
+            mask = (segments == segment_id)
+            rounded_color = np.round(info['avg_color']).astype(np.uint8)
+            mean_color_image[mask] = rounded_color
+            # Обновляем info с округленным цветом для консистентности
+            info['avg_color'] = rounded_color.astype(np.float64)
+        
+        # Теперь пересчитываем pixel_count на основе округленных цветов в mean_color изображении
+        for segment_id, info in segment_info.items():
+            rounded_color = info['avg_color'].astype(np.uint8)  # Уже округлен выше
+            
+            # Считаем все пиксели с таким же цветом в mean_color изображении
+            color_mask = np.all(mean_color_image == rounded_color, axis=2)
+            actual_pixel_count = np.sum(color_mask)
+            
+            # Обновляем pixel_count на реальное количество
+            segment_info[segment_id]['pixel_count'] = int(actual_pixel_count)
+            
         
         return segment_info
     
