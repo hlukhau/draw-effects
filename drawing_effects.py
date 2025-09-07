@@ -881,17 +881,17 @@ class DrawingEffectGenerator:
         newest_json_file = json_files_with_time[0][0]
         
         json_path = os.path.join(outputs_dir, newest_json_file)
-        print(f"DEBUG: Found {len(json_files)} JSON files for file_id: {file_id}")
-        print(f"DEBUG: Available JSON files: {[f for f, _ in json_files_with_time]}")
-        print(f"DEBUG: Selected NEWEST JSON file: {newest_json_file}")
-        print(f"Loading segment data from: {json_path}")
+        # print(f"DEBUG: Found {len(json_files)} JSON files for file_id: {file_id}")
+        # print(f"DEBUG: Available JSON files: {[f for f, _ in json_files_with_time]}")
+        # print(f"DEBUG: Selected NEWEST JSON file: {newest_json_file}")
+        # print(f"Loading segment data from: {json_path}")
         
         with open(json_path, 'r') as f:
             segment_data = json.load(f)
         
         # Debug: Print the structure of segment_data
-        print(f"DEBUG: segment_data keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Not a dict'}")
-        print(f"DEBUG: segment_data type: {type(segment_data)}")
+        # print(f"DEBUG: segment_data keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Not a dict'}")
+        # print(f"DEBUG: segment_data type: {type(segment_data)}")
         
         # Handle different possible data structures
         segments_list = None
@@ -905,7 +905,7 @@ class DrawingEffectGenerator:
                 for key in segment_data.keys():
                     if isinstance(segment_data[key], list):
                         segments_list = segment_data[key]
-                        print(f"DEBUG: Using key '{key}' as segments list")
+                        # print(f"DEBUG: Using key '{key}' as segments list")
                         break
         elif isinstance(segment_data, list):
             segments_list = segment_data
@@ -915,9 +915,9 @@ class DrawingEffectGenerator:
         
         # Debug: Print available segment IDs
         available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
-        print(f"DEBUG: Available segment IDs: {sorted(available_ids)[:10]}... (showing first 10)")
-        print(f"DEBUG: Looking for segment_id: {segment_id} (type: {type(segment_id)})")
-        print(f"DEBUG: Total segments: {len(segments_list)}")
+        # print(f"DEBUG: Available segment IDs: {sorted(available_ids)[:10]}... (showing first 10)")
+        # print(f"DEBUG: Looking for segment_id: {segment_id} (type: {type(segment_id)})")
+        # print(f"DEBUG: Total segments: {len(segments_list)}")
         
         # Find the target segment
         target_segment = None
@@ -928,7 +928,7 @@ class DrawingEffectGenerator:
         
         if not target_segment:
             # Try alternative matching strategies
-            print(f"DEBUG: Direct ID match failed. Trying alternative strategies...")
+            # print(f"DEBUG: Direct ID match failed. Trying alternative strategies...")
             
             # Strategy 1: Try converting segment_id to int if it's a string
             if isinstance(segment_id, str) and segment_id.isdigit():
@@ -936,7 +936,7 @@ class DrawingEffectGenerator:
                 for segment in segments_list:
                     if segment['id'] == segment_id_int:
                         target_segment = segment
-                        print(f"DEBUG: Found segment using int conversion: {segment_id_int}")
+                        # print(f"DEBUG: Found segment using int conversion: {segment_id_int}")
                         break
             
             # Strategy 2: Try converting segment IDs to string if segment_id is string
@@ -944,22 +944,22 @@ class DrawingEffectGenerator:
                 for segment in segments_list:
                     if str(segment['id']) == segment_id:
                         target_segment = segment
-                        print(f"DEBUG: Found segment using string conversion: {segment_id}")
+                        # print(f"DEBUG: Found segment using string conversion: {segment_id}")
                         break
             
             # Strategy 3: Try using segment_id as index if it's within range
             if not target_segment and isinstance(segment_id, int) and 0 <= segment_id < len(segments_list):
                 target_segment = segments_list[segment_id]
-                print(f"DEBUG: Found segment using index: {segment_id}")
+                # print(f"DEBUG: Found segment using index: {segment_id}")
         
         if not target_segment:
             raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
         
         # Debug: Print target segment structure
-        print(f"🔍 DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
-        print(f"🔍 DEBUG: Target segment type: {type(target_segment)}")
-        if isinstance(target_segment, dict):
-            print(f"🔍 DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
+        # print(f"🔍 DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
+        # print(f"🔍 DEBUG: Target segment type: {type(target_segment)}")
+        # if isinstance(target_segment, dict):
+        #     print(f"🔍 DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
         
         # Check if average_color exists and handle different structures
         if 'average_color' not in target_segment:
@@ -990,10 +990,10 @@ class DrawingEffectGenerator:
         newest_mean_color_file = mean_color_files_with_time[0][0]
         
         mean_color_path = os.path.join(outputs_dir, newest_mean_color_file)
-        print(f"DEBUG: Found {len(mean_color_files)} mean color files for file_id: {file_id}")
-        print(f"DEBUG: Available mean color files: {[f for f, _ in mean_color_files_with_time]}")
-        print(f"DEBUG: Selected NEWEST mean color file: {newest_mean_color_file}")
-        print(f"Loading mean color image from: {mean_color_path}")
+        # print(f"DEBUG: Found {len(mean_color_files)} mean color files for file_id: {file_id}")
+        # print(f"DEBUG: Available mean color files: {[f for f, _ in mean_color_files_with_time]}")
+        # print(f"DEBUG: Selected NEWEST mean color file: {newest_mean_color_file}")
+        # print(f"Loading mean color image from: {mean_color_path}")
         
         mean_image = cv2.imread(mean_color_path)
         mean_image = cv2.cvtColor(mean_image, cv2.COLOR_BGR2RGB)
@@ -1008,11 +1008,11 @@ class DrawingEffectGenerator:
         # Find pixels matching the segment color
         mask = np.all(mean_image == target_color, axis=2)
         
-        print(f"🔍 DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
-        print(f"🔍 DEBUG: Target color: {target_color}")
-        print(f"🔍 DEBUG: Mean image shape: {mean_image.shape}")
-        print(f"🔍 DEBUG: Mask shape: {mask.shape}")
-        print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
+        # print(f"🔍 DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
+        # print(f"🔍 DEBUG: Target color: {target_color}")
+        # print(f"🔍 DEBUG: Mean image shape: {mean_image.shape}")
+        # print(f"🔍 DEBUG: Mask shape: {mask.shape}")
+        # print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
         
         if np.sum(mask) == 0:
             print(f"❌ ERROR: No pixels found for segment {segment_id} with color {target_color}")
@@ -1113,17 +1113,17 @@ class DrawingEffectGenerator:
         """Generate pencil hatching strokes aligned with segment's longest axis"""
         strokes = []
         
-        print(f"🎨 DEBUG: Starting pencil stroke generation")
-        print(f"🎨 DEBUG: Segment mask shape: {segment_mask.shape}")
-        print(f"🎨 DEBUG: Mask has True values: {np.any(segment_mask)}")
-        print(f"🎨 DEBUG: Total True pixels: {np.sum(segment_mask)}")
-        print(f"🎨 DEBUG: Stroke density: {stroke_density}")
+        # print(f"🎨 DEBUG: Starting pencil stroke generation")
+        # print(f"🎨 DEBUG: Segment mask shape: {segment_mask.shape}")
+        # print(f"🎨 DEBUG: Mask has True values: {np.any(segment_mask)}")
+        # print(f"🎨 DEBUG: Total True pixels: {np.sum(segment_mask)}")
+        # print(f"🎨 DEBUG: Stroke density: {stroke_density}")
         
         # Get segment properties
         labeled_mask = measure.label(segment_mask.astype(int))
         regions = measure.regionprops(labeled_mask)
         
-        print(f"🎨 DEBUG: Found {len(regions)} regions in mask")
+        # print(f"🎨 DEBUG: Found {len(regions)} regions in mask")
         
         if not regions:
             print(f"❌ ERROR: No regions found in segment mask!")
@@ -1461,9 +1461,9 @@ class DrawingEffectGenerator:
                             'type': 'pencil'
                         })
         
-        print(f"🎨 DEBUG: Pencil stroke generation completed")
-        print(f"🎨 DEBUG: Total strokes generated: {len(strokes)}")
-        print(f"🎨 DEBUG: Stroke types: {[s.get('type', 'unknown') for s in strokes[:5]]}")  # Show first 5
+        # print(f"🎨 DEBUG: Pencil stroke generation completed")
+        # print(f"🎨 DEBUG: Total strokes generated: {len(strokes)}")
+        # print(f"🎨 DEBUG: Stroke types: {[s.get('type', 'unknown') for s in strokes[:5]]}")  # Show first 5
         
         return strokes
     
@@ -1938,13 +1938,13 @@ class DrawingEffectGenerator:
             progress_callback(40, f"Generated {len(segments)} segments, detecting boundaries...")
         
         # Detect boundaries between segments with fragmentation
-        print(f"DEBUG: detect_contrast_boundaries called with fragmentation={fragmentation}, type={type(fragmentation)}")
+        # print(f"DEBUG: detect_contrast_boundaries called with fragmentation={fragmentation}, type={type(fragmentation)}")
         boundaries = self._detect_segment_boundaries(image, segments, sensitivity, fragmentation)
         
         if progress_callback:
             progress_callback(60, f"Found {len(boundaries)} boundary fragments, analyzing colors...")
         
-        print(f"DEBUG: Fragmentation={fragmentation}, Total boundaries after fragmentation: {len(boundaries)}")
+        # print(f"DEBUG: Fragmentation={fragmentation}, Total boundaries after fragmentation: {len(boundaries)}")
         
         # Analyze contrast for each boundary fragment
         boundary_data = self._analyze_fragment_contrast(image, boundaries, segments, sensitivity)
@@ -2028,7 +2028,7 @@ class DrawingEffectGenerator:
         boundary_id_counter = 0  # Global counter for unique boundary IDs
         original_boundaries_count = 0  # Track original boundaries before fragmentation
         
-        print(f"DEBUG: Starting boundary detection with fragmentation={fragmentation}")
+        # print(f"DEBUG: Starting boundary detection with fragmentation={fragmentation}")
         
         # Find boundaries between adjacent segments
         for i, segment_i in enumerate(segments):
@@ -2058,7 +2058,7 @@ class DrawingEffectGenerator:
                 if fragmentation > 1:
                     # Split boundary into specified number of fragments
                     fragments = self._fragment_boundary_into_pieces(smoothed, fragmentation)
-                    print(f"DEBUG: Original boundary {original_boundaries_count} fragmented into {len(fragments)} pieces")
+                    # print(f"DEBUG: Original boundary {original_boundaries_count} fragmented into {len(fragments)} pieces")
                     # Assign unique IDs to each fragment
                     for fragment in fragments:
                         fragment_with_id = (fragment, boundary_id_counter)
@@ -2070,8 +2070,8 @@ class DrawingEffectGenerator:
                     boundaries.append(boundary_with_id)
                     boundary_id_counter += 1
         
-        print(f"DEBUG: Fragmentation complete. Original boundaries: {original_boundaries_count}, Final fragments: {len(boundaries)}")
-        print(f"DEBUG: Expected fragments with fragmentation {fragmentation}: {original_boundaries_count * fragmentation}")
+        # print(f"DEBUG: Fragmentation complete. Original boundaries: {original_boundaries_count}, Final fragments: {len(boundaries)}")
+        # print(f"DEBUG: Expected fragments with fragmentation {fragmentation}: {original_boundaries_count * fragmentation}")
         
         return boundaries
     
@@ -2284,7 +2284,7 @@ class DrawingEffectGenerator:
         
         # With fragmentation, we want to keep ALL fragments that pass contrast filtering
         # Don't limit the number of boundaries when fragmentation is used
-        print(f"DEBUG: _analyze_fragment_contrast processed {len(boundary_data)} boundaries after contrast filtering")
+        # print(f"DEBUG: _analyze_fragment_contrast processed {len(boundary_data)} boundaries after contrast filtering")
         
         return boundary_data
     

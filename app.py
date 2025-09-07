@@ -246,7 +246,7 @@ def detect_boundaries():
         sensitivity = data.get('sensitivity', 50)  # Default sensitivity
         fragmentation = data.get('fragmentation', 50)  # Default fragmentation
         
-        print(f"DEBUG: API received fragmentation={fragmentation}, type={type(fragmentation)}")
+        # print(f"DEBUG: API received fragmentation={fragmentation}, type={type(fragmentation)}")
         
         if not file_id:
             return jsonify({'error': 'No file ID provided'}), 400
@@ -316,7 +316,7 @@ def detect_boundaries_background(file_id, filename, sensitivity, fragmentation):
             'mode': 'boundaries'
         }
         
-        print(f"DEBUG: Saved {len(boundary_data)} boundaries to processing_status with fragmentation={fragmentation}")
+        # print(f"DEBUG: Saved {len(boundary_data)} boundaries to processing_status with fragmentation={fragmentation}")
         
     except Exception as e:
         processing_status[file_id + '_boundaries'] = {
@@ -328,16 +328,16 @@ def detect_boundaries_background(file_id, filename, sensitivity, fragmentation):
 @app.route('/boundaries/<file_id>')
 def get_boundaries(file_id):
     """Get detected boundaries for a file"""
-    print(f"DEBUG: get_boundaries called for file_id={file_id}")
-    print(f"DEBUG: processing_status keys: {list(processing_status.keys())}")
+    # print(f"DEBUG: get_boundaries called for file_id={file_id}")
+    # print(f"DEBUG: processing_status keys: {list(processing_status.keys())}")
     
     status = processing_status.get(file_id + '_boundaries', {'status': 'not_found'})
-    print(f"DEBUG: status for {file_id + '_boundaries'}: {status.get('status', 'unknown')}")
+    # print(f"DEBUG: status for {file_id + '_boundaries'}: {status.get('status', 'unknown')}")
     
     if status.get('mode') == 'boundaries' and status.get('status') == 'completed':
         boundary_data = status.get('boundary_data', [])
-        print(f"DEBUG: API returning {len(boundary_data)} boundaries for file_id={file_id}")
-        print(f"DEBUG: First few boundary IDs: {[b.get('id') for b in boundary_data[:5]] if boundary_data else 'None'}")
+        # print(f"DEBUG: API returning {len(boundary_data)} boundaries for file_id={file_id}")
+        # print(f"DEBUG: First few boundary IDs: {[b.get('id') for b in boundary_data[:5]] if boundary_data else 'None'}")
         return jsonify({
             'boundary_data': boundary_data,
             'total_boundaries': len(boundary_data),
@@ -346,7 +346,7 @@ def get_boundaries(file_id):
             'status': 'completed'
         })
     else:
-        print(f"DEBUG: Boundaries not available for file_id={file_id}, status={status.get('status', 'unknown')}")
+        # print(f"DEBUG: Boundaries not available for file_id={file_id}, status={status.get('status', 'unknown')}")
         return jsonify({'error': 'Boundaries not available', 'status': status.get('status', 'unknown')}), 404
 
 @app.route('/draw_boundary', methods=['POST'])
