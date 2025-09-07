@@ -23,7 +23,8 @@ let canvasData = {
     preserveCanvasState: false,
     videoResults: [], // Store multiple video results
     cumulativeFrames: [], // Store all frames for cumulative video
-    masterVideoRecorder: null // Single video recorder for cumulative recording
+    masterVideoRecorder: null, // Single video recorder for cumulative recording
+    brushSprites: {} // Cache for loaded brush sprites
 };
 
 // Global variables for timing
@@ -38,6 +39,15 @@ const brushTypes = {
         blendMode: 'source-over',
         textureIntensity: 0.8,
         strokeVariation: 0.3
+    },
+    brush: {
+        name: 'Brush',
+        opacity: 0.8,
+        blendMode: 'source-over',
+        textureIntensity: 1.0,
+        strokeVariation: 0.4,
+        spriteUrl: '/static/brushes/brush1.png',
+        spriteRandomization: 0.2
     }
 };
 
@@ -685,6 +695,7 @@ function showSegmentationResults(fileId) {
                                         <label for="brushTypeSelect" class="mb-0 mr-2"><small>Brush:</small></label>
                                         <select id="brushTypeSelect" class="form-control form-control-sm" style="width: auto; display: inline-block;">
                                             <option value="pencil">Pencil</option>
+                                            <option value="brush">Brush</option>
                                         </select>
                                     </div>
                                     <div class="mr-3">
@@ -1459,31 +1470,12 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         ctx.globalAlpha = brushConfig.opacity;
         ctx.globalCompositeOperation = brushConfig.blendMode;
         
-        // Draw the actual brush stroke
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.width;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        
-        // Apply minimal brush-specific effects for speed
-        if (brushType === 'pencil') {
-            ctx.globalAlpha = 0.95;
-            ctx.globalCompositeOperation = 'source-over';
-        }
-        
-        ctx.beginPath();
-        if (stroke.points.length === 1) {
-            // Single point - draw a dot
-            ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, 2 * Math.PI);
-            ctx.fillStyle = stroke.color;
-            ctx.fill();
+        if (brushType === 'brush') {
+            // Use brush sprite rendering
+            drawBrushSprite(ctx, stroke, brushConfig);
         } else {
-            // Multiple points - draw a stroke
-            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-            for (let i = 1; i < stroke.points.length; i++) {
-                ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-            }
-            ctx.stroke();
+            // Use traditional line rendering for pencil
+            drawPencilStroke(ctx, stroke);
         }
         
         // Reset context
@@ -1491,6 +1483,285 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.shadowBlur = 0;
     });
+}
+
+function drawPencilStroke(ctx, stroke) {
+    // Draw the actual brush stroke
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Apply minimal brush-specific effects for speed
+    ctx.globalAlpha = 0.95;
+    ctx.globalCompositeOperation = 'source-over';
+    
+    ctx.beginPath();
+    if (stroke.points.length === 1) {
+        // Single point - draw a dot
+        ctx.arc(stroke.points[0].x, stroke.points[0].y, stroke.width / 2, 0, 2 * Math.PI);
+        ctx.fillStyle = stroke.color;
+        ctx.fill();
+    } else {
+        // Multiple points - draw a stroke
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i++) {
+            ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
+    }
+}
+
+async function drawBrushSprite(ctx, stroke, brushConfig) {
+    // Load brush sprite if not cached
+    const spriteImage = await loadBrushSprite(brushConfig.spriteUrl);
+    if (!spriteImage) {
+        console.warn('Failed to load brush sprite, falling back to pencil');
+        drawPencilStroke(ctx, stroke);
+        return;
+    }
+    
+    if (stroke.points.length === 0) return;
+    
+    // Parse stroke color
+    const color = parseColor(stroke.color);
+    if (!color) {
+        console.warn('Invalid stroke color:', stroke.color);
+        return;
+    }
+    
+    // Debug: Log color information
+    console.log(`🎨 Drawing brush sprite with color:`, stroke.color, `-> RGB(${color.r}, ${color.g}, ${color.b})`);
+    console.log(`🎨 Sprite loaded:`, spriteImage.width, 'x', spriteImage.height, 'pixels');
+    
+    // Calculate sprite size based on stroke width with randomization
+    let baseSize = stroke.width || 4;
+    
+    // If sprite is smaller than 6 points, set minimum to 6 points
+    if (baseSize < 6) {
+        console.log(`🎨 Sprite too small (${baseSize}px), setting minimum to 6px`);
+        baseSize = 6;
+    }
+    
+    // Draw sprites along the stroke path
+    if (stroke.points.length === 1) {
+        // Single point - draw one sprite with random rotation
+        const point = stroke.points[0];
+        // Size randomization: 0% to +30% increase only
+        const size = baseSize * (1 + Math.random() * 0.3);
+        // Angle randomization: ±30% (±0.52 radians ≈ ±30 degrees)
+        const rotation = (Math.random() - 0.5) * 1.05; // ±0.52 radians
+        drawColorizedSprite(ctx, spriteImage, point.x, point.y, size, color, rotation);
+    } else {
+        // Multiple points - draw sprites along the path with direction-based rotation
+        const totalDistance = calculateStrokeDistance(stroke.points);
+        const baseSpacing = baseSize * 1.2; // Base spacing between sprites
+        
+        let currentDistance = 0;
+        let spriteIndex = 0;
+        
+        while (currentDistance < totalDistance) {
+            const t = currentDistance / totalDistance; // Normalized position (0 to 1)
+            const point = interpolateAlongStroke(stroke.points, t);
+            
+            if (point) {
+                // Calculate stroke direction at this point
+                const direction = getStrokeDirectionAt(stroke.points, t);
+                
+                // Enhanced randomization (30% for all parameters)
+                // Size: 0% to +30% increase only
+                const size = baseSize * (1 + Math.random() * 0.3);
+                
+                // Angle: ±30% variation from stroke direction
+                const rotationVariation = (Math.random() - 0.5) * 1.05; // ±0.52 radians (±30°)
+                const rotation = direction + rotationVariation;
+                
+                drawColorizedSprite(ctx, spriteImage, point.x, point.y, size, color, rotation);
+                
+                // Spacing: 0% to +30% increase only
+                const spacingIncrease = Math.random() * 0.3; // 0% to +30%
+                const nextSpacing = baseSpacing * (1 + spacingIncrease);
+                currentDistance += nextSpacing;
+                spriteIndex++;
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+async function loadBrushSprite(spriteUrl) {
+    // Check cache first
+    if (canvasData.brushSprites[spriteUrl]) {
+        return canvasData.brushSprites[spriteUrl];
+    }
+    
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = function() {
+            canvasData.brushSprites[spriteUrl] = img;
+            resolve(img);
+        };
+        img.onerror = function() {
+            console.error('Failed to load brush sprite:', spriteUrl);
+            resolve(null);
+        };
+        img.src = spriteUrl;
+    });
+}
+
+function drawColorizedSprite(ctx, spriteImage, x, y, size, color, rotation = 0) {
+    // Save the current context state
+    ctx.save();
+    
+    // Move to the sprite position and apply rotation
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    
+    // Create a temporary canvas for colorization
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    tempCanvas.width = spriteImage.width;
+    tempCanvas.height = spriteImage.height;
+    
+    // First, fill with the target color
+    tempCtx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Then use the sprite as a mask with globalCompositeOperation
+    tempCtx.globalCompositeOperation = 'destination-in';
+    tempCtx.drawImage(spriteImage, 0, 0);
+    
+    // Draw the colorized sprite to the main canvas (centered)
+    const halfSize = size / 2;
+    ctx.drawImage(tempCanvas, -halfSize, -halfSize, size, size);
+    
+    // Restore the context state
+    ctx.restore();
+    
+    // Debug: Log that sprite was drawn
+    console.log(`🎨 Drew colorized sprite at (${x}, ${y}) with size ${size}, rotation ${rotation.toFixed(2)}rad, and color RGB(${color.r}, ${color.g}, ${color.b})`);
+}
+
+function parseColor(colorString) {
+    // Parse RGB color string like "rgb(255, 0, 0)" or hex like "#ff0000"
+    if (colorString.startsWith('rgb(')) {
+        const match = colorString.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+            return {
+                r: parseInt(match[1]),
+                g: parseInt(match[2]),
+                b: parseInt(match[3])
+            };
+        }
+    } else if (colorString.startsWith('#')) {
+        const hex = colorString.substring(1);
+        if (hex.length === 6) {
+            return {
+                r: parseInt(hex.substring(0, 2), 16),
+                g: parseInt(hex.substring(2, 4), 16),
+                b: parseInt(hex.substring(4, 6), 16)
+            };
+        }
+    }
+    return null;
+}
+
+function calculateStrokeDistance(points) {
+    let totalDistance = 0;
+    for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i-1].x;
+        const dy = points[i].y - points[i-1].y;
+        totalDistance += Math.sqrt(dx * dx + dy * dy);
+    }
+    return totalDistance;
+}
+
+function interpolateAlongStroke(points, t) {
+    if (points.length < 2) return points[0] || null;
+    if (t <= 0) return points[0];
+    if (t >= 1) return points[points.length - 1];
+    
+    // Calculate cumulative distances
+    const distances = [0];
+    let totalDistance = 0;
+    
+    for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i-1].x;
+        const dy = points[i].y - points[i-1].y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        totalDistance += distance;
+        distances.push(totalDistance);
+    }
+    
+    // Find target distance
+    const targetDistance = t * totalDistance;
+    
+    // Find the segment containing the target distance
+    for (let i = 1; i < distances.length; i++) {
+        if (distances[i] >= targetDistance) {
+            const segmentStart = distances[i-1];
+            const segmentEnd = distances[i];
+            const segmentT = (targetDistance - segmentStart) / (segmentEnd - segmentStart);
+            
+            // Interpolate between points[i-1] and points[i]
+            const p1 = points[i-1];
+            const p2 = points[i];
+            
+            return {
+                x: p1.x + (p2.x - p1.x) * segmentT,
+                y: p1.y + (p2.y - p1.y) * segmentT
+            };
+        }
+    }
+    
+    return points[points.length - 1];
+}
+
+function getStrokeDirectionAt(points, t) {
+    if (points.length < 2) return 0;
+    
+    // Calculate cumulative distances
+    const distances = [0];
+    let totalDistance = 0;
+    
+    for (let i = 1; i < points.length; i++) {
+        const dx = points[i].x - points[i-1].x;
+        const dy = points[i].y - points[i-1].y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        totalDistance += distance;
+        distances.push(totalDistance);
+    }
+    
+    // Find target distance
+    const targetDistance = t * totalDistance;
+    
+    // Find the segment containing the target distance
+    for (let i = 1; i < distances.length; i++) {
+        if (distances[i] >= targetDistance) {
+            // Calculate direction of this segment
+            const p1 = points[i-1];
+            const p2 = points[i];
+            
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            
+            // Return angle in radians (Math.atan2 returns angle from -π to π)
+            return Math.atan2(dy, dx);
+        }
+    }
+    
+    // Fallback: use direction of last segment
+    if (points.length >= 2) {
+        const p1 = points[points.length - 2];
+        const p2 = points[points.length - 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        return Math.atan2(dy, dx);
+    }
+    
+    return 0;
 }
 
 function drawTaperedStrokes(highlightStrokes) {

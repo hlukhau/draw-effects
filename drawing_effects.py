@@ -1070,9 +1070,9 @@ class DrawingEffectGenerator:
         # Calculate appropriate brush width based on area
         base_stroke_width = max(2, int(math.sqrt(area) / 10))
         
-        # Special handling for pencil brush type
-        if brush_type == 'pencil':
-            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density)
+        # Special handling for pencil and brush types (both use same stroke generation)
+        if brush_type == 'pencil' or brush_type == 'brush':
+            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type)
         
         if area < 100:
             # Very small segments: single dot or short stroke
@@ -1109,7 +1109,7 @@ class DrawingEffectGenerator:
         
         return brush_strokes
     
-    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density):
+    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density, brush_type='pencil'):
         """Generate pencil hatching strokes aligned with segment's longest axis"""
         strokes = []
         
@@ -1250,7 +1250,7 @@ class DrawingEffectGenerator:
                     'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                     'width': stroke_width,
                     'points': stroke_points,
-                    'type': 'pencil'
+                    'type': brush_type
                 })
         
         # Add multiple layers of fine detail strokes for maximum pencil density and realism
@@ -1318,7 +1318,7 @@ class DrawingEffectGenerator:
                         'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                         'width': fine_stroke_width,
                         'points': stroke_points,
-                        'type': 'pencil'
+                        'type': brush_type
                     })
             
             # Layer 2: Micro detail strokes (extremely thin) for large segments
@@ -1380,7 +1380,7 @@ class DrawingEffectGenerator:
                             'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                             'width': micro_stroke_width,
                             'points': stroke_points,
-                            'type': 'pencil'
+                            'type': brush_type
                         })
         
         # Add cross-hatching for larger segments (more visible)
@@ -1458,7 +1458,7 @@ class DrawingEffectGenerator:
                             'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
                             'width': stroke_width,
                             'points': stroke_points,
-                            'type': 'pencil'
+                            'type': brush_type
                         })
         
         print(f"🎨 DEBUG: Pencil stroke generation completed")
@@ -2053,17 +2053,21 @@ class DrawingEffectGenerator:
                 # Count original boundary before fragmentation
                 original_boundaries_count += 1
                 
-                # Fragment boundaries based on fragmentation parameter (1-6 fragments)
-                # ALWAYS fragment ALL boundaries regardless of length
+                # NEW LOGIC: Find the most contrasted fragment of each boundary
                 if fragmentation > 1:
-                    # Split boundary into specified number of fragments
-                    fragments = self._fragment_boundary_into_pieces(smoothed, fragmentation)
-                    print(f"DEBUG: Original boundary {original_boundaries_count} fragmented into {len(fragments)} pieces")
-                    # Assign unique IDs to each fragment
-                    for fragment in fragments:
-                        fragment_with_id = (fragment, boundary_id_counter)
-                        boundaries.append(fragment_with_id)
+                    # Generate all possible fragments for contrast analysis
+                    all_fragments = self._fragment_boundary_into_pieces(smoothed, fragmentation)
+                    print(f"DEBUG: Generated {len(all_fragments)} fragments for contrast analysis")
+                    
+                    # Find the fragment with highest contrast
+                    best_fragment = self._find_highest_contrast_fragment(image, all_fragments)
+                    if best_fragment is not None:
+                        boundary_with_id = (best_fragment, boundary_id_counter)
+                        boundaries.append(boundary_with_id)
                         boundary_id_counter += 1
+                        print(f"DEBUG: Selected best fragment from {len(all_fragments)} candidates")
+                    else:
+                        print(f"DEBUG: No suitable fragment found, skipping boundary")
                 else:
                     # Single boundary gets one ID (fragmentation = 1)
                     boundary_with_id = (smoothed, boundary_id_counter)
@@ -2149,6 +2153,113 @@ class DrawingEffectGenerator:
         
         return fragments if fragments else [contour]
     
+    def _find_highest_contrast_fragment(self, image, fragments):
+        """
+        Find the fragment with the highest contrast from a list of fragments
+        
+        Args:
+            image: Original image for contrast analysis
+            fragments: List of contour fragments to analyze
+            
+        Returns:
+            The fragment with highest contrast, or None if no suitable fragment found
+        """
+        if not fragments:
+            return None
+        
+        best_fragment = None
+        highest_contrast = 0.0
+        
+        for fragment in fragments:
+            try:
+                # Calculate contrast for this fragment
+                contrast_ratio = self._calculate_fragment_contrast(image, fragment)
+                
+                if contrast_ratio > highest_contrast:
+                    highest_contrast = contrast_ratio
+                    best_fragment = fragment
+                    
+            except Exception as e:
+                print(f"DEBUG: Error analyzing fragment contrast: {e}")
+                continue
+        
+        print(f"DEBUG: Best fragment has contrast ratio: {highest_contrast:.3f}")
+        return best_fragment
+    
+    def _calculate_fragment_contrast(self, image, contour):
+        """
+        Calculate contrast ratio for a single contour fragment
+        
+        Args:
+            image: Original image
+            contour: Single contour fragment
+            
+        Returns:
+            Contrast ratio (0.0 to 1.0+)
+        """
+        if len(contour) < 2:
+            return 0.0
+        
+        # Sample colors along the contour
+        left_colors = []
+        right_colors = []
+        
+        # Sample every few points along the contour
+        sample_step = max(1, len(contour) // 10)  # Sample ~10 points
+        
+        for i in range(0, len(contour), sample_step):
+            point = contour[i][0] if len(contour[i].shape) > 1 else contour[i]
+            x, y = int(point[0]), int(point[1])
+            
+            # Skip points near image edges
+            if x < 3 or y < 3 or x >= image.shape[1] - 3 or y >= image.shape[0] - 3:
+                continue
+            
+            # Calculate perpendicular direction for sampling
+            if i < len(contour) - 1:
+                next_point = contour[i + 1][0] if len(contour[i + 1].shape) > 1 else contour[i + 1]
+                dx = next_point[0] - point[0]
+                dy = next_point[1] - point[1]
+                
+                # Perpendicular direction (rotate 90 degrees)
+                perp_dx = -dy
+                perp_dy = dx
+                
+                # Normalize
+                length = np.sqrt(perp_dx**2 + perp_dy**2)
+                if length > 0:
+                    perp_dx /= length
+                    perp_dy /= length
+                    
+                    # Sample on both sides of the boundary
+                    offset = 3
+                    left_x = int(x + perp_dx * offset)
+                    left_y = int(y + perp_dy * offset)
+                    right_x = int(x - perp_dx * offset)
+                    right_y = int(y - perp_dy * offset)
+                    
+                    # Check bounds and sample colors
+                    if (0 <= left_x < image.shape[1] and 0 <= left_y < image.shape[0] and
+                        0 <= right_x < image.shape[1] and 0 <= right_y < image.shape[0]):
+                        left_colors.append(image[left_y, left_x])
+                        right_colors.append(image[right_y, right_x])
+        
+        if len(left_colors) == 0 or len(right_colors) == 0:
+            return 0.0
+        
+        # Calculate average colors
+        left_avg = np.mean(left_colors, axis=0)
+        right_avg = np.mean(right_colors, axis=0)
+        
+        # Calculate contrast ratio
+        left_brightness = np.mean(left_avg)
+        right_brightness = np.mean(right_avg)
+        
+        if min(left_brightness, right_brightness) == 0:
+            return 0.0
+        
+        contrast_ratio = abs(left_brightness - right_brightness) / max(left_brightness, right_brightness)
+        return contrast_ratio
     
     def _analyze_fragment_contrast(self, image, boundaries, segments, sensitivity):
         """
@@ -2245,6 +2356,21 @@ class DrawingEffectGenerator:
                 else:
                     brightest_color = right_avg
                     darkest_color = left_avg
+                
+                # ENHANCEMENT: Enhance contrast by making bright colors brighter and dark colors darker
+                # Make brightest color even brighter
+                brightest_color = np.array([
+                    min(255, int(brightest_color[0] * 1.2)),  # Increase brightness by 20%
+                    min(255, int(brightest_color[1] * 1.2)),
+                    min(255, int(brightest_color[2] * 1.2))
+                ])
+                
+                # Make darkest color even darker
+                darkest_color = np.array([
+                    max(0, int(darkest_color[0] * 0.8)),  # Decrease brightness by 20%
+                    max(0, int(darkest_color[1] * 0.8)),
+                    max(0, int(darkest_color[2] * 0.8))
+                ])
                 
                 # Calculate contour length
                 contour_length = cv2.arcLength(contour, False)
@@ -2613,13 +2739,14 @@ class DrawingEffectGenerator:
             is_dark = False
         
         # Enhance the color (make it more extreme)
+        # ENHANCEMENT: Stronger contrast - make light colors lighter and dark colors darker
         enhanced_color = {}
         for channel in ['r', 'g', 'b']:
             value = base_color[channel]
-            if is_dark:  # Make darker
-                enhanced_color[channel] = max(0, int(value * 0.7))
-            else:  # Make lighter
-                enhanced_color[channel] = min(255, int(value * 1.3))
+            if is_dark:  # Make darker (stronger darkening)
+                enhanced_color[channel] = max(0, int(value * 0.5))  # Changed from 0.7 to 0.5
+            else:  # Make lighter (stronger lightening)
+                enhanced_color[channel] = min(255, int(value * 1.5))  # Changed from 1.3 to 1.5
         
         return enhanced_color
     
