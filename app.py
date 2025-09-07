@@ -3,8 +3,14 @@ import uuid
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 from drawing_effects import DrawingEffectGenerator
+from flash_effect import FlashEffect
 import threading
 import json
+import numpy as np
+import cv2
+from PIL import Image
+import io
+import base64
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -21,6 +27,9 @@ os.makedirs('templates', exist_ok=True)
 
 # Store processing status
 processing_status = {}
+
+# Initialize FlashEffect instance
+flash_effect = FlashEffect()
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 
@@ -417,6 +426,119 @@ def get_boundary_status(file_id):
     """Get boundary detection status"""
     status = processing_status.get(file_id + '_boundaries', {'status': 'not_found'})
     return jsonify(status)
+
+@app.route('/flash_animation', methods=['POST'])
+def flash_animation():
+    """
+    Создает анимацию flash эффекта для текущего состояния канваса
+    """
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        frame_identifier = data.get('frame_identifier', 'latest')  # Идентификатор кадра
+        relief_strength = data.get('relief_strength', 0.05)
+        
+        if not file_id:
+            return jsonify({'success': False, 'error': 'Missing file_id'})
+        
+        # Определяем путь к изображению на основе frame_identifier
+        image_path = None
+        possible_paths = []
+        
+        if frame_identifier == 'latest':
+            # Пробуем найти последний сохраненный кадр канваса
+            possible_paths = [
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_canvas_state.png"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_mean_color.png"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}.png"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}.jpg"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}.jpeg")
+            ]
+        else:
+            # Используем конкретный кадр
+            possible_paths = [
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_{frame_identifier}.png"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_mean_color.png"),
+                os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}.png")
+            ]
+        
+        # Ищем первый существующий файл
+        for path in possible_paths:
+            if os.path.exists(path):
+                image_path = path
+                print(f"Found image file: {image_path}")
+                break
+        
+        if not image_path:
+            print(f"No image file found for file_id: {file_id}")
+            print(f"Checked paths: {possible_paths}")
+            return jsonify({'success': False, 'error': f'Image file not found for file_id: {file_id}'})
+        
+        # Загружаем изображение
+        image = Image.open(image_path).convert('RGB')
+        
+        # Предварительная обработка изображения
+        session_id = flash_effect.preprocess_image(image, relief_strength)
+        
+        # Генерируем все кадры анимации
+        frames, positions = flash_effect.get_animation_frames(session_id, frame_step=5)
+        
+        # Конвертируем кадры в base64
+        animation_frames = []
+        for i, frame in enumerate(frames):
+            frame_base64 = flash_effect.frame_to_base64(frame)
+            animation_frames.append({
+                'frame_index': i,
+                'light_position': positions[i],
+                'image_data': frame_base64
+            })
+        
+        # Очищаем предрасчитанные данные после использования
+        flash_effect.cleanup_session(session_id)
+        
+        return jsonify({
+            'success': True,
+            'session_id': session_id,
+            'total_frames': len(animation_frames),
+            'frames': animation_frames,
+            'animation_duration': len(animation_frames) * 100,  # миллисекунды
+            'relief_strength': relief_strength
+        })
+        
+    except Exception as e:
+        print(f"Error in flash_animation: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/save_canvas_frame', methods=['POST'])
+def save_canvas_frame():
+    """
+    Сохраняет кадр канваса на сервер для использования в flash анимации
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file provided'})
+        
+        file = request.files['file']
+        file_id = request.form.get('file_id')
+        frame_type = request.form.get('frame_type', 'canvas_state')
+        
+        if not file_id:
+            return jsonify({'success': False, 'error': 'Missing file_id'})
+        
+        # Сохраняем файл
+        filename = f"{file_id}_{frame_type}.png"
+        filepath = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+        file.save(filepath)
+        
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'filepath': filepath
+        })
+        
+    except Exception as e:
+        print(f"Error in save_canvas_frame: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002)

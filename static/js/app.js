@@ -13,6 +13,7 @@ let canvasData = {
     segments: null,
     segmentInfo: null,
     selectedSegmentId: null,
+    preEffectCanvasState: null,
     meanColorImage: null,
     originalSegments: null,
     currentBrushType: 'pencil',
@@ -738,6 +739,19 @@ function showSegmentationResults(fileId) {
                                     </button>
                                 </div>
                             </div>
+                            
+                            <!-- Effects Row -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
+                                <h6 class="mb-0"><i class="fas fa-magic"></i> Effects</h6>
+                                <div class="d-flex align-items-center">
+                                    <button id="lightReliefBtn" class="btn btn-outline-warning btn-sm mr-2">
+                                        <i class="fas fa-sun"></i> Свет-рельеф
+                                    </button>
+                                    <button id="resetEffectsBtn" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-undo"></i> Сброс эффектов
+                                    </button>
+                                </div>
+                            </div>
                             <div id="drawingProgress" class="mb-3" style="display: none;">
                                 <div class="alert alert-info">
                                     <div class="row">
@@ -1004,6 +1018,10 @@ function initializeInteractiveCanvas(fileId) {
     document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
     document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
     
+    // Initialize effect buttons
+    document.getElementById('lightReliefBtn').addEventListener('click', applyLightReliefEffect);
+    document.getElementById('resetEffectsBtn').addEventListener('click', resetEffects);
+    
     // Initialize brush type selector
     const brushSelector = document.getElementById('brushTypeSelect');
     if (brushSelector) {
@@ -1114,6 +1132,19 @@ function updateSegmentInfoOnly(fileId) {
     if (generateVideoBtn) {
         generateVideoBtn.replaceWith(generateVideoBtn.cloneNode(true));
         document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
+    }
+    
+    // Re-initialize effect buttons
+    const lightReliefBtn = document.getElementById('lightReliefBtn');
+    if (lightReliefBtn) {
+        lightReliefBtn.replaceWith(lightReliefBtn.cloneNode(true));
+        document.getElementById('lightReliefBtn').addEventListener('click', applyLightReliefEffect);
+    }
+    
+    const resetEffectsBtn = document.getElementById('resetEffectsBtn');
+    if (resetEffectsBtn) {
+        resetEffectsBtn.replaceWith(resetEffectsBtn.cloneNode(true));
+        document.getElementById('resetEffectsBtn').addEventListener('click', resetEffects);
     }
     
     // Update brush and background selectors
@@ -1762,6 +1793,306 @@ function getStrokeDirectionAt(points, t) {
     }
     
     return 0;
+}
+
+async function saveCanvasStateBeforeEffect(canvas) {
+    try {
+        // Save the current canvas state as a data URL
+        canvasData.preEffectCanvasState = canvas.toDataURL('image/png');
+        console.log('Canvas state saved before effect application');
+        
+        // Also save canvas state to server for flash animation
+        await saveCanvasStateToServer(canvas);
+        return true;
+    } catch (error) {
+        console.error('Error saving canvas state:', error);
+        showAlert('Ошибка при сохранении состояния канваса', 'warning');
+        return false;
+    }
+}
+
+function saveCanvasStateToServer(canvas) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Convert canvas to blob and send to server
+            canvas.toBlob(function(blob) {
+                if (!blob || !currentFileId) {
+                    resolve(false);
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', blob, 'canvas_state.png');
+                formData.append('file_id', currentFileId);
+                formData.append('frame_type', 'canvas_state');
+                
+                fetch('/save_canvas_frame', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Canvas state saved to server for flash animation');
+                        resolve(true);
+                    } else {
+                        console.error('Failed to save canvas state to server:', data.error);
+                        resolve(false);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving canvas state to server:', error);
+                    reject(error);
+                });
+            }, 'image/png');
+        } catch (error) {
+            console.error('Error saving canvas state to server:', error);
+            reject(error);
+        }
+    });
+}
+
+async function applyLightReliefEffect() {
+    const canvas = document.getElementById('drawingCanvas');
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        showAlert('Нет изображения для применения эффекта', 'warning');
+        return;
+    }
+    
+    if (!currentFileId) {
+        showAlert('Нет активного файла для применения эффекта', 'warning');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Show loading state
+    const lightReliefBtn = document.getElementById('lightReliefBtn');
+    if (lightReliefBtn) {
+        lightReliefBtn.disabled = true;
+        lightReliefBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Сохранение состояния...';
+    }
+    
+    try {
+        // Save canvas state before applying effect and wait for completion
+        const saved = await saveCanvasStateBeforeEffect(canvas);
+        
+        if (!saved) {
+            showAlert('Не удалось сохранить состояние канваса', 'warning');
+            if (lightReliefBtn) {
+                lightReliefBtn.disabled = false;
+                lightReliefBtn.innerHTML = '<i class="fas fa-sun"></i> Свет-рельеф';
+            }
+            return;
+        }
+        
+        // Update button text
+        if (lightReliefBtn) {
+            lightReliefBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Запуск анимации...';
+        }
+        
+        // Start flash animation after canvas state is saved
+        startFlashAnimation();
+        
+    } catch (error) {
+        console.error('Error in applyLightReliefEffect:', error);
+        showAlert('Ошибка при подготовке эффекта', 'danger');
+        
+        if (lightReliefBtn) {
+            lightReliefBtn.disabled = false;
+            lightReliefBtn.innerHTML = '<i class="fas fa-sun"></i> Свет-рельеф';
+        }
+    }
+}
+
+function startFlashAnimation() {
+    if (!currentFileId) {
+        showAlert('Нет активного файла для анимации', 'warning');
+        return;
+    }
+    
+    const lightReliefBtn = document.getElementById('lightReliefBtn');
+    
+    // Call backend to generate flash animation frames
+    fetch('/flash_animation', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId,
+            frame_identifier: 'latest',
+            relief_strength: 0.01
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`Flash animation generated: ${data.total_frames} frames`);
+            
+            // Play animation and capture frames for video
+            playFlashAnimationWithCapture(data.frames);
+            
+        } else {
+            console.error('Flash animation error:', data.error);
+            showAlert('Ошибка при создании анимации: ' + data.error, 'danger');
+            
+            // Reset button state
+            if (lightReliefBtn) {
+                lightReliefBtn.disabled = false;
+                lightReliefBtn.innerHTML = '<i class="fas fa-sun"></i> Свет-рельеф';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error calling flash animation:', error);
+        showAlert('Ошибка при вызове анимации', 'danger');
+        
+        // Reset button state
+        if (lightReliefBtn) {
+            lightReliefBtn.disabled = false;
+            lightReliefBtn.innerHTML = '<i class="fas fa-sun"></i> Свет-рельеф';
+        }
+    });
+}
+
+function playFlashAnimationWithCapture(frames) {
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    const lightReliefBtn = document.getElementById('lightReliefBtn');
+    
+    let currentFrame = 0;
+    const frameDelay = 100; // миллисекунды между кадрами
+    
+    // Update button to show animation progress
+    if (lightReliefBtn) {
+        lightReliefBtn.innerHTML = '<i class="fas fa-play"></i> Анимация...';
+    }
+    
+    function playNextFrame() {
+        if (currentFrame >= frames.length) {
+            // Animation complete
+            console.log('Flash animation completed');
+            
+            // Add all frames to video
+            frames.forEach((frame, index) => {
+                const img = new Image();
+                img.onload = function() {
+                    // Capture frame for video
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Add frame to video frames
+                    if (canvasData.cumulativeFrames) {
+                        canvasData.cumulativeFrames.push(canvas.toDataURL('image/png'));
+                    }
+                };
+                img.src = 'data:image/jpeg;base64,' + frame.image_data;
+            });
+            
+            // Reset canvas to pre-effect state after animation
+            setTimeout(() => {
+                if (canvasData.preEffectCanvasState) {
+                    const img = new Image();
+                    img.onload = function() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                    };
+                    img.src = canvasData.preEffectCanvasState;
+                }
+                
+                showAlert('Анимация "Свет-рельеф" завершена! Кадры добавлены в видео.', 'success');
+                
+                // Reset button state
+                if (lightReliefBtn) {
+                    lightReliefBtn.disabled = false;
+                    lightReliefBtn.innerHTML = '<i class="fas fa-sun"></i> Свет-рельеф';
+                }
+            }, 500);
+            
+            return;
+        }
+        
+        // Display current frame
+        const frame = frames[currentFrame];
+        const img = new Image();
+        img.onload = function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            
+            // Add frame to video frames
+            if (canvasData.cumulativeFrames) {
+                canvasData.cumulativeFrames.push(canvas.toDataURL('image/png'));
+            }
+            
+            currentFrame++;
+            
+            // Schedule next frame
+            setTimeout(playNextFrame, frameDelay);
+        };
+        img.src = 'data:image/jpeg;base64,' + frame.image_data;
+    }
+    
+    // Start animation
+    playNextFrame();
+}
+
+function resetEffects() {
+    const canvas = document.getElementById('drawingCanvas');
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        showAlert('Нет изображения для сброса эффектов', 'warning');
+        return;
+    }
+    
+    // Check if we have a saved canvas state before effect application
+    if (!canvasData.preEffectCanvasState) {
+        showAlert('Нет сохраненного состояния до применения эффекта', 'warning');
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Show loading state
+    const resetBtn = document.getElementById('resetEffectsBtn');
+    if (resetBtn) {
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Сбрасывается...';
+    }
+    
+    try {
+        // Restore the canvas state from before effect application
+        const img = new Image();
+        img.onload = function() {
+            // Clear canvas and restore the pre-effect state
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            
+            showAlert('Эффекты сброшены, восстановлено состояние до применения эффекта', 'success');
+            
+            // Reset button state
+            if (resetBtn) {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = '<i class="fas fa-undo"></i> Сброс эффектов';
+            }
+        };
+        img.onerror = function() {
+            showAlert('Ошибка при восстановлении состояния канваса', 'danger');
+            if (resetBtn) {
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = '<i class="fas fa-undo"></i> Сброс эффектов';
+            }
+        };
+        img.src = canvasData.preEffectCanvasState;
+        
+    } catch (error) {
+        console.error('Error resetting effects:', error);
+        showAlert('Ошибка при сбросе эффектов', 'danger');
+        
+        if (resetBtn) {
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = '<i class="fas fa-undo"></i> Сброс эффектов';
+        }
+    }
 }
 
 function drawTaperedStrokes(highlightStrokes) {
