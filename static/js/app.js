@@ -3580,6 +3580,14 @@ function initializeAnimationControls() {
         });
     }
     
+    // Draw Effect button
+    const drawEffectBtn = document.getElementById('drawEffectBtn');
+    if (drawEffectBtn) {
+        drawEffectBtn.addEventListener('click', function() {
+            drawEffect();
+        });
+    }
+    
     // Reset Canvas button
     const resetDrawingBtn = document.getElementById('resetDrawingBtn');
     if (resetDrawingBtn) {
