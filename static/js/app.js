@@ -38,6 +38,13 @@ const brushTypes = {
         blendMode: 'source-over',
         textureIntensity: 0.8,
         strokeVariation: 0.3
+    },
+    brush: {
+        name: 'Brush',
+        opacity: 0.8,
+        blendMode: 'source-over',
+        textureIntensity: 0.6,
+        strokeVariation: 0.4
     }
 };
 
@@ -685,6 +692,7 @@ function showSegmentationResults(fileId) {
                                         <label for="brushTypeSelect" class="mb-0 mr-2"><small>Brush:</small></label>
                                         <select id="brushTypeSelect" class="form-control form-control-sm" style="width: auto; display: inline-block;">
                                             <option value="pencil">Pencil</option>
+                                            <option value="brush">Brush</option>
                                         </select>
                                     </div>
                                     <div class="mr-3">

@@ -1070,9 +1070,9 @@ class DrawingEffectGenerator:
         # Calculate appropriate brush width based on area
         base_stroke_width = max(2, int(math.sqrt(area) / 10))
         
-        # Special handling for pencil brush type
-        if brush_type == 'pencil':
-            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density)
+        # Special handling for pencil and brush types
+        if brush_type == 'pencil' or brush_type == 'brush':
+            return self._generate_pencil_hatching_strokes(mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type)
         
         if area < 100:
             # Very small segments: single dot or short stroke
@@ -1109,8 +1109,8 @@ class DrawingEffectGenerator:
         
         return brush_strokes
     
-    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density):
-        """Generate pencil hatching strokes aligned with segment's longest axis"""
+    def _generate_pencil_hatching_strokes(self, segment_mask, avg_color, base_stroke_width, stroke_density, brush_type='pencil'):
+        """Generate pencil hatching strokes or brush strokes aligned with segment's longest axis"""
         strokes = []
         
         # print(f"🎨 DEBUG: Starting pencil stroke generation")
@@ -1171,8 +1171,13 @@ class DrawingEffectGenerator:
             max(0, int(float(avg_color['b']) * 0.9))
         ]
         
-        # Calculate appropriate brush width based on area
-        stroke_width = max(1, int(base_stroke_width * 0.8))  # Thinner for pencil effect
+        # Calculate appropriate brush width based on area and brush type
+        if brush_type == 'brush':
+            # For brush, minimum width is 6 pixels
+            stroke_width = max(6, int(base_stroke_width * 1.0))
+        else:
+            # For pencil, thinner strokes
+            stroke_width = max(1, int(base_stroke_width * 0.8))
         
         # Generate primary hatching strokes along the major axis
         for i in range(num_strokes):
@@ -1212,49 +1217,68 @@ class DrawingEffectGenerator:
             if start_point is None:
                 continue
             
-            # Generate stroke points (2-5 points as requested)
-            num_points = np.random.randint(2, 6)
-            stroke_points = []
-            
-            current_x, current_y = start_point
-            
-            # Calculate step size to create stroke of appropriate length
-            max_stroke_length = min(segment_width, segment_height) * 0.8
-            step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
-            
-            for point_idx in range(num_points):
-                # Add the current point if it's within segment boundaries
-                if (0 <= int(current_y) < segment_mask.shape[0] and 
-                    0 <= int(current_x) < segment_mask.shape[1] and
-                    segment_mask[int(current_y), int(current_x)]):
-                    stroke_points.append({'x': current_x, 'y': current_y})
+            # Generate stroke points based on brush type
+            if brush_type == 'brush':
+                # For brush: create short segments with intervals
+                stroke_points = self._generate_brush_segments(
+                    start_point, dx, dy, stroke_width, segment_mask, bbox, 
+                    min(segment_width, segment_height) * 0.8
+                )
                 
-                # Move to next point along the stroke direction
-                if point_idx < num_points - 1:
-                    current_x += dx * step_size
-                    current_y += dy * step_size
+                # Add all brush segments as separate strokes
+                for segment_points in stroke_points:
+                    if len(segment_points) >= 2:
+                        strokes.append({
+                            'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                            'width': stroke_width,
+                            'points': segment_points,
+                            'type': 'brush'
+                        })
+            else:
+                # For pencil: original continuous stroke logic
+                num_points = np.random.randint(2, 6)
+                stroke_points = []
+                
+                current_x, current_y = start_point
+                
+                # Calculate step size to create stroke of appropriate length
+                max_stroke_length = min(segment_width, segment_height) * 0.8
+                step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
+                
+                for point_idx in range(num_points):
+                    # Add the current point if it's within segment boundaries
+                    if (0 <= int(current_y) < segment_mask.shape[0] and 
+                        0 <= int(current_x) < segment_mask.shape[1] and
+                        segment_mask[int(current_y), int(current_x)]):
+                        stroke_points.append({'x': current_x, 'y': current_y})
                     
-                    # Ensure we don't go outside the bounding box
-                    if (current_x < bbox[1] or current_x >= bbox[3] or
-                        current_y < bbox[0] or current_y >= bbox[2]):
-                        break
+                    # Move to next point along the stroke direction
+                    if point_idx < num_points - 1:
+                        current_x += dx * step_size
+                        current_y += dy * step_size
                         
-                    if (int(current_y) >= segment_mask.shape[0] or 
-                        int(current_x) >= segment_mask.shape[1] or
-                        not segment_mask[int(current_y), int(current_x)]):
-                        break
-            
-            # Only add stroke if we have at least 2 points
-            if len(stroke_points) >= 2:
-                strokes.append({
-                    'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
-                    'width': stroke_width,
-                    'points': stroke_points,
-                    'type': 'pencil'
-                })
+                        # Ensure we don't go outside the bounding box
+                        if (current_x < bbox[1] or current_x >= bbox[3] or
+                            current_y < bbox[0] or current_y >= bbox[2]):
+                            break
+                            
+                        if (int(current_y) >= segment_mask.shape[0] or 
+                            int(current_x) >= segment_mask.shape[1] or
+                            not segment_mask[int(current_y), int(current_x)]):
+                            break
+                
+                # Only add stroke if we have at least 2 points
+                if len(stroke_points) >= 2:
+                    strokes.append({
+                        'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                        'width': stroke_width,
+                        'points': stroke_points,
+                        'type': 'pencil'
+                    })
         
         # Add multiple layers of fine detail strokes for maximum pencil density and realism
-        if area > 50:
+        # Only apply fine detail layers for pencil, not for brush
+        if area > 50 and brush_type == 'pencil':
             # Layer 1: Fine detail strokes (very thin)
             fine_stroke_count = min(num_strokes, 25)
             
@@ -1384,7 +1408,8 @@ class DrawingEffectGenerator:
                         })
         
         # Add cross-hatching for larger segments (more visible)
-        if area > 60 and len(strokes) > 0:  # Even lower threshold for maximum cross-hatching
+        # Only apply cross-hatching for pencil, not for brush
+        if area > 60 and len(strokes) > 0 and brush_type == 'pencil':  # Even lower threshold for maximum cross-hatching
             cross_hatch_count = min(len(strokes) // 1.2, 30)  # Even more cross-hatching strokes
             
             # Add multiple layers of cross-hatching at different angles
@@ -2661,3 +2686,77 @@ class DrawingEffectGenerator:
             })
         
         return stroke_points
+    
+    def _generate_brush_segments(self, start_point, dx, dy, stroke_width, segment_mask, bbox, max_stroke_length):
+        """
+        Generate brush segments with short strokes and intervals
+        
+        Args:
+            start_point: Starting point (x, y)
+            dx, dy: Direction vector
+            stroke_width: Width of the stroke
+            segment_mask: Mask of the segment
+            bbox: Bounding box of the segment
+            max_stroke_length: Maximum length of the entire stroke
+            
+        Returns:
+            List of stroke segments, each containing a list of points
+        """
+        segments = []
+        current_x, current_y = start_point
+        
+        # Calculate segment parameters based on stroke width
+        segment_length = stroke_width * 1.5  # Length of each segment = 1.5 * thickness
+        interval_length = stroke_width + np.random.random() * stroke_width  # Interval = thickness + random part
+        
+        total_distance = 0
+        
+        while total_distance < max_stroke_length:
+            # Create a short segment
+            segment_points = []
+            segment_distance = 0
+            
+            # Generate points for this segment
+            while segment_distance < segment_length and total_distance < max_stroke_length:
+                # Check if current point is within bounds and in segment
+                if (0 <= int(current_y) < segment_mask.shape[0] and 
+                    0 <= int(current_x) < segment_mask.shape[1] and
+                    current_x >= bbox[1] and current_x < bbox[3] and
+                    current_y >= bbox[0] and current_y < bbox[2] and
+                    segment_mask[int(current_y), int(current_x)]):
+                    
+                    segment_points.append({'x': current_x, 'y': current_y})
+                
+                # Move to next point
+                step_size = 2.0  # Small step size for smooth segments
+                current_x += dx * step_size
+                current_y += dy * step_size
+                segment_distance += step_size
+                total_distance += step_size
+                
+                # Break if we go outside bounds
+                if (current_x < bbox[1] or current_x >= bbox[3] or
+                    current_y < bbox[0] or current_y >= bbox[2] or
+                    int(current_y) >= segment_mask.shape[0] or 
+                    int(current_x) >= segment_mask.shape[1] or
+                    not segment_mask[int(current_y), int(current_x)]):
+                    break
+            
+            # Add segment if it has at least 2 points
+            if len(segment_points) >= 2:
+                segments.append(segment_points)
+            
+            # Move through interval (gap between segments)
+            interval_distance = 0
+            while interval_distance < interval_length and total_distance < max_stroke_length:
+                current_x += dx * 2.0
+                current_y += dy * 2.0
+                interval_distance += 2.0
+                total_distance += 2.0
+                
+                # Break if we go outside bounds
+                if (current_x < bbox[1] or current_x >= bbox[3] or
+                    current_y < bbox[0] or current_y >= bbox[2]):
+                    break
+        
+        return segments
