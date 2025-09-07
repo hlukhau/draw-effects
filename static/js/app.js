@@ -2573,12 +2573,12 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
         }
         
         // Draw this segment
-        console.log(`🎨 Drawing segment ${segment.id} (${currentIndex + 1}/${sortedSegments.length})`);
-        console.log(`📊 Segment data:`, {
-            id: segment.id,
-            pixel_count: segment.pixel_count,
-            average_color: segment.average_color
-        });
+        //console.log(`🎨 Drawing segment ${segment.id} (${currentIndex + 1}/${sortedSegments.length})`);
+//        console.log(`📊 Segment data:`, {
+//            id: segment.id,
+//            pixel_count: segment.pixel_count,
+//            average_color: segment.average_color
+//        });
         
         fetch('/draw_segment', {
             method: 'POST',
@@ -2593,11 +2593,11 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             })
         })
         .then(response => {
-            console.log(`📡 Backend response for segment ${segment.id}:`, response.status);
+//            console.log(`📡 Backend response for segment ${segment.id}:`, response.status);
             return response.json();
         })
         .then(data => {
-            console.log(`📊 Backend data for segment ${segment.id}:`, data);
+//            console.log(`📊 Backend data for segment ${segment.id}:`, data);
             
             // Check again if drawing was interrupted
             if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
@@ -2609,7 +2609,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             }
             
             if (data.success) {
-                console.log(`✅ Successfully got brush strokes for segment ${segment.id}:`, data.brush_strokes?.length || 0, 'strokes');
+//                console.log(`✅ Successfully got brush strokes for segment ${segment.id}:`, data.brush_strokes?.length || 0, 'strokes');
                 
                 // Apply brush strokes with enhanced visualization
                 applyBrushStrokesFast(data.brush_strokes, segment.id);
@@ -3599,13 +3599,13 @@ function loadBoundaryResults(fileId) {
     const sensitivity = document.getElementById('boundarySensitivity').value;
     const fragmentation = document.getElementById('boundaryFragmentation').value;
     
-    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
+//    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
     
     fetch(`/boundaries/${fileId}?sensitivity=${sensitivity}&fragmentation=${fragmentation}`)
     .then(response => response.json())
     .then(data => {
-        console.log(`DEBUG: Frontend API response:`, data);
-        console.log(`DEBUG: Frontend received ${data.boundary_data ? data.boundary_data.length : 0} boundaries`);
+//        console.log(`DEBUG: Frontend API response:`, data);
+//        console.log(`DEBUG: Frontend received ${data.boundary_data ? data.boundary_data.length : 0} boundaries`);
         if (data.boundary_data && data.boundary_data.length >= 0) {
             canvasData.boundaries = data.boundary_data;
             displayBoundaryResults(data.boundary_data);
@@ -3620,7 +3620,7 @@ function loadBoundaryResults(fileId) {
 }
 
 function displayBoundaryResults(boundaries) {
-    console.log(`DEBUG: displayBoundaryResults called with ${boundaries.length} boundaries`);
+//    console.log(`DEBUG: displayBoundaryResults called with ${boundaries.length} boundaries`);
     const boundaryResults = document.getElementById('boundaryResults');
     const boundaryList = document.getElementById('boundaryList');
     
