@@ -568,7 +568,7 @@ def light_effect():
         
         # Генерируем кадры анимации освещения
         frames = []
-        positions = list(range(0, 201, 5))  # 0-200 с шагом 5
+        positions = [i * 2.5 for i in range(81)]  # 0-200 с шагом 2.5 (81 кадр)
         
         for light_position in positions:
             # Получаем preprocessed_data из flash модуля

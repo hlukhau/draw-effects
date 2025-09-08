@@ -380,7 +380,7 @@ function processSegmentation() {
         
         // Reset button
         segmentBtn.disabled = false;
-        segmentBtn.innerHTML = '<i class="fas fa-eye"></i> Show Segmentation';
+        segmentBtn.innerHTML = '<i class="fas fa-eye"></i> Segmentation';
     });
 }
 
@@ -3057,7 +3057,7 @@ function hideBoundaryResults() {
 function resetSegmentButton() {
     const segmentBtn = document.getElementById('segmentBtn');
     segmentBtn.disabled = false;
-    segmentBtn.innerHTML = '<i class="fas fa-eye"></i> Show Segmentation';
+    segmentBtn.innerHTML = '<i class="fas fa-eye"></i> Segmentation';
     document.getElementById('processingStatus').style.display = 'none';
 }
 
