@@ -163,7 +163,8 @@ def preprocess_image(image, relief_strength=0.05, session_id=None):
 
     # Сохраняем предварительно обработанные данные
     preprocessed_data[session_id] = {
-        'oil_img': oil_img,
+        'original_img': img,  # Исходное изображение для текстуры
+        'oil_img': oil_img,   # Сглаженное для совместимости
         'height_map': height_map,
         'normal_x': normal_x,
         'normal_y': normal_y,
@@ -174,7 +175,8 @@ def preprocess_image(image, relief_strength=0.05, session_id=None):
 
     return session_id
 def render_lighting(preprocessed_data, light_position):
-    oil_img = preprocessed_data['oil_img']
+    # Используем исходное изображение для текстуры (сохраняем детали)
+    texture_img = preprocessed_data.get('original_img', preprocessed_data['oil_img'])
     normal_x = preprocessed_data['normal_x']
     normal_y = preprocessed_data['normal_y']
     normal_z = preprocessed_data['normal_z']
@@ -211,7 +213,7 @@ def render_lighting(preprocessed_data, light_position):
     reflection *= intensity_factor
 
     # Создаем блики (теплый оттенок)
-    highlight = np.zeros_like(oil_img, dtype=np.float32)
+    highlight = np.zeros_like(texture_img, dtype=np.float32)
     highlight[:, :, 0] = 0.1 * reflection  # Синий канал
     highlight[:, :, 1] = 0.3 * reflection  # Зеленый канал
     highlight[:, :, 2] = 0.6 * reflection  # Красный канал
@@ -234,8 +236,8 @@ def render_lighting(preprocessed_data, light_position):
     highlight[:, :, 1] += 0.3 * main_highlight
     highlight[:, :, 2] += 0.6 * main_highlight
 
-    # Накладываем блики на изображение
-    result = oil_img.astype(np.float32) + 100 * highlight  # Fixed: astype instead of ast
+    # Накладываем блики на исходное изображение (сохраняем детали)
+    result = texture_img.astype(np.float32) + 100 * highlight
     result = np.clip(result, 0, 255).astype(np.uint8)
 
     return Image.fromarray(result)
@@ -606,7 +608,8 @@ def index():
                     
                     animationInterval = setInterval(function() {
                         if (currentFrame >= totalFrames) {
-                            currentFrame = 0;
+                            stopAnimation()
+                            return
                         }
                         
                         var pos = positions[currentFrame];
