@@ -4173,35 +4173,11 @@ function initializeCollapsibleTables() {
 
 // Initialize animation controls functionality
 function initializeAnimationControls() {
-    // Start Drawing Animation button
-    const startDrawingBtn = document.getElementById('startDrawingBtn');
-    if (startDrawingBtn) {
-        startDrawingBtn.addEventListener('click', function() {
-            startDrawingAnimation();
-        });
-    }
-    
-    // Pause Drawing button
-    const pauseDrawingBtn = document.getElementById('pauseDrawingBtn');
-    if (pauseDrawingBtn) {
-        pauseDrawingBtn.addEventListener('click', function() {
-            pauseDrawingAnimation();
-        });
-    }
-    
-    // Draw Effect button
-    const drawEffectBtn = document.getElementById('drawEffectBtn');
-    if (drawEffectBtn) {
-        drawEffectBtn.addEventListener('click', function() {
-            drawEffect();
-        });
-    }
-    
-    // Reset Canvas button
-    const resetDrawingBtn = document.getElementById('resetDrawingBtn');
-    if (resetDrawingBtn) {
-        resetDrawingBtn.addEventListener('click', function() {
-            resetDrawingCanvas();
+    // Light Effect button (only remaining button in Effects section)
+    const lightEffectBtn = document.getElementById('lightEffectBtn');
+    if (lightEffectBtn) {
+        lightEffectBtn.addEventListener('click', function() {
+            startLightEffectAnimation();
         });
     }
     
@@ -4358,4 +4334,102 @@ function createCanvasInAnimationSection(canvasContainer) {
             }
         }
     }
+}
+
+// Light Effect Animation Integration
+function startLightEffectAnimation() {
+    console.log('Starting Light Effect Animation...');
+    
+    if (!canvasData.canvasInitialized) {
+        showAlert('Канвас не инициализирован. Сначала загрузите изображение и создайте сегментацию.', 'warning');
+        return;
+    }
+    
+    const canvas = document.getElementById('drawingCanvas');
+    if (!canvas) {
+        showAlert('Канвас не найден', 'error');
+        return;
+    }
+    
+    // Show progress
+    showAlert('Генерируем эффект освещения...', 'info');
+    
+    // Get canvas data as base64
+    const canvasImageData = canvas.toDataURL('image/jpeg', 0.95);
+    
+    // Call our own API endpoint instead of external flash service
+    fetch('/light_effect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            canvas_data: canvasImageData,
+            relief_strength: 0.05
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showAlert('Ошибка генерации эффекта: ' + data.error, 'error');
+            return;
+        }
+        
+        console.log('Light effect generated:', data.total_frames, 'frames');
+        showAlert('Эффект освещения сгенерирован. Воспроизводим анимацию...', 'success');
+        
+        // Play animation and add frames to video
+        playLightEffectAnimation(data.frames);
+    })
+    .catch(error => {
+        console.error('Error generating light effect:', error);
+        showAlert('Ошибка генерации эффекта освещения', 'error');
+    });
+}
+
+function playLightEffectAnimation(frames) {
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let currentFrame = 0;
+    const totalFrames = frames.length;
+    
+    // Initialize cumulative frames if not exists
+    if (!canvasData.cumulativeFrames) {
+        canvasData.cumulativeFrames = [];
+    }
+    
+    function displayNextFrame() {
+        if (currentFrame >= totalFrames) {
+            // Animation complete
+            console.log('Light effect animation completed');
+            showAlert('Анимация эффекта освещения завершена! Кадры добавлены для видео.', 'success');
+            return;
+        }
+        
+        // Display frame on canvas
+        const img = new Image();
+        img.onload = function() {
+            // Clear canvas and draw new frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Add frame to cumulative frames for video generation
+            canvasData.cumulativeFrames.push(canvas.toDataURL('image/jpeg', 0.8));
+            
+            // Update progress
+            const progress = Math.round((currentFrame / totalFrames) * 100);
+            showAlert(`Эффект освещения: кадр ${currentFrame + 1}/${totalFrames} (${progress}%)`, 'info');
+            
+            currentFrame++;
+            
+            // Schedule next frame
+            setTimeout(displayNextFrame, 100); // 100ms delay between frames
+        };
+        
+        img.src = 'data:image/jpeg;base64,' + frames[currentFrame];
+    }
+    
+    // Start animation
+    displayNextFrame();
 }

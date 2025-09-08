@@ -11,6 +11,9 @@ import cv2
 from PIL import Image
 import io
 import base64
+import sys
+sys.path.append('tools')
+from tools.flash import preprocess_image, render_lighting
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
@@ -538,6 +541,59 @@ def save_canvas_frame():
         
     except Exception as e:
         print(f"Error in save_canvas_frame: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/light_effect', methods=['POST'])
+def light_effect():
+    """
+    Применяет эффект освещения к изображению канваса
+    """
+    try:
+        data = request.get_json()
+        canvas_data = data.get('canvas_data')  # base64 image data
+        relief_strength = float(data.get('relief_strength', 0.05))
+        
+        if not canvas_data:
+            return jsonify({'success': False, 'error': 'No canvas data provided'})
+        
+        # Декодируем base64 изображение
+        if canvas_data.startswith('data:image'):
+            canvas_data = canvas_data.split(',')[1]
+        
+        image_bytes = base64.b64decode(canvas_data)
+        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        
+        # Предварительная обработка изображения
+        session_id = preprocess_image(image, relief_strength)
+        
+        # Генерируем кадры анимации освещения
+        frames = []
+        positions = list(range(0, 201, 5))  # 0-200 с шагом 5
+        
+        for light_position in positions:
+            # Получаем preprocessed_data из flash модуля
+            from tools.flash import preprocessed_data
+            processed_image = render_lighting(preprocessed_data[session_id], light_position)
+            
+            # Конвертируем в base64
+            img_io = io.BytesIO()
+            processed_image.save(img_io, 'JPEG', quality=80)
+            img_io.seek(0)
+            img_str = base64.b64encode(img_io.getvalue()).decode('ascii')
+            frames.append(img_str)
+        
+        # Очищаем данные сессии
+        if session_id in preprocessed_data:
+            del preprocessed_data[session_id]
+        
+        return jsonify({
+            'success': True,
+            'frames': frames,
+            'total_frames': len(frames)
+        })
+        
+    except Exception as e:
+        print(f"Error in light_effect: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
