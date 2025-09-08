@@ -184,11 +184,13 @@ def render_lighting(preprocessed_data, light_position):
 
     # Плавное появление и исчезание освещения
     if light_position <= 30:
-        intensity_factor = light_position / 30  # Плавное появление от 0 до 20
-    elif light_position >= 170:
-        intensity_factor = (200 - light_position) / 30  # Плавное исчезание от 180 до 200
+        intensity_factor = light_position / 30  # Плавное появление от 0 до 30
+    elif light_position >= 170 and light_position <= 200:
+        intensity_factor = (200 - light_position) / 30  # Плавное исчезание от 170 до 200
+    elif light_position > 200:
+        intensity_factor = 0.0  # Полное исчезание после 200
     else:
-        intensity_factor = 1.0  # Полная интенсивность от 20 до 180
+        intensity_factor = 1.0  # Полная интенсивность от 30 до 170
 
     # Рассчитываем направление света
     light_angle = light_position * 1.8  # 0-200 -> 0-360
