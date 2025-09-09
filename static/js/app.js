@@ -25,7 +25,8 @@ let canvasData = {
     videoResults: [], // Store multiple video results
     cumulativeFrames: [], // Store all frames for cumulative video
     masterVideoRecorder: null, // Single video recorder for cumulative recording
-    brushSprites: {} // Cache for loaded brush sprites
+    brushSprites: {}, // Cache for loaded brush sprites
+    appliedEffects: [] // Track applied effects with frame ranges: {type, startFrame, endFrame, timestamp}
 };
 
 // Global variables for timing
@@ -223,6 +224,7 @@ function showImagePreview(src, fileName) {
     canvasData.cumulativeFrames = [];
     canvasData.videoResults = [];
     canvasData.masterVideoRecorder = null;
+    canvasData.appliedEffects = []; // Clear applied effects tracking
     
     hideResults();
     hideSegmentationResults();
@@ -3124,7 +3126,11 @@ function generateVideoFromFrames() {
     const videoDuration = parseInt(document.getElementById('videoDuration').value);
     const videoFps = parseInt(document.getElementById('videoFps').value);
     
-    showAlert(`Generating video from ${canvasData.cumulativeFrames.length} captured frames...`, 'info');
+    // Calculate frame distribution based on applied effects
+    const frameDistribution = calculateEffectBasedFrameDistribution(videoDuration, videoFps);
+    
+    showAlert(`Generating video from ${canvasData.cumulativeFrames.length} captured frames with effect-based timing...`, 'info');
+    console.log('Frame distribution:', frameDistribution);
     
     // Disable the generate video button during processing
     const generateBtn = document.getElementById('generateVideoBtn');
@@ -3136,14 +3142,15 @@ function generateVideoFromFrames() {
     // Show progress with detailed tracking
     showVideoGenerationProgressWithPercent(0);
     
-    // Create a video recorder for manual generation
+    // Create a video recorder for manual generation with effect-based distribution
     const videoRecorder = new VideoRecorder({
         videoDuration: videoDuration,
         segmentCount: canvasData.cumulativeFrames.length,
         canvas: document.getElementById('drawingCanvas'),
         frameRate: videoFps,
         timeCompression: true,
-        isCumulative: true
+        isCumulative: true,
+        frameDistribution: frameDistribution // Pass the calculated distribution
     });
     
     // Set the captured frames directly
@@ -3206,6 +3213,7 @@ function clearVideoResults() {
         canvasData.videoResults = [];
         canvasData.cumulativeFrames = [];
         canvasData.masterVideoRecorder = null;
+        canvasData.appliedEffects = []; // Clear applied effects tracking
         
         // Update display
         const videoContainer = document.getElementById('videoResultContainer');
@@ -3320,14 +3328,23 @@ class VideoRecorder {
         this.frameRate = options.frameRate || 30;
         this.timeCompression = options.timeCompression || false;
         this.isCumulative = options.isCumulative || false;
+        this.frameDistribution = options.frameDistribution || null; // Effect-based frame distribution
         
         this.capturedFrames = [];
         this.isRecording = false;
         this.totalFramesNeeded = this.videoDuration * this.frameRate;
-        this.framesPerSegment = Math.max(1, Math.floor(this.totalFramesNeeded / this.segmentCount));
         
-        console.log(`Video setup: ${this.videoDuration}s @ ${this.frameRate}fps = ${this.totalFramesNeeded} frames`);
-        console.log(`Frames per segment: ${this.framesPerSegment}`);
+        if (this.frameDistribution) {
+            // Use effect-based distribution
+            console.log('Using effect-based frame distribution');
+            console.log('Distribution:', this.frameDistribution);
+        } else {
+            // Use traditional uniform distribution
+            this.framesPerSegment = Math.max(1, Math.floor(this.totalFramesNeeded / this.segmentCount));
+            console.log(`Video setup: ${this.videoDuration}s @ ${this.frameRate}fps = ${this.totalFramesNeeded} frames`);
+            console.log(`Frames per segment: ${this.framesPerSegment}`);
+        }
+        
         console.log(`Cumulative mode: ${this.isCumulative}`);
     }
     
@@ -3526,6 +3543,18 @@ class VideoRecorder {
     
     async playbackFramesWithProgress(videoCanvas, ctx, progressCallback) {
         const frameInterval = 1000 / this.frameRate; // ms between frames
+        
+        if (this.frameDistribution) {
+            // Use effect-based frame distribution
+            console.log('Using effect-based frame distribution for video generation');
+            await this.playbackFramesWithEffectDistribution(videoCanvas, ctx, progressCallback, frameInterval);
+        } else {
+            // Use traditional uniform distribution
+            await this.playbackFramesWithUniformDistribution(videoCanvas, ctx, progressCallback, frameInterval);
+        }
+    }
+    
+    async playbackFramesWithUniformDistribution(videoCanvas, ctx, progressCallback, frameInterval) {
         const totalFrames = this.totalFramesNeeded;
         
         // Calculate how to distribute captured frames across target duration
@@ -3554,6 +3583,75 @@ class VideoRecorder {
         }
         
         console.log('Frame playback with progress completed');
+    }
+    
+    async playbackFramesWithEffectDistribution(videoCanvas, ctx, progressCallback, frameInterval) {
+        console.log('Starting effect-based frame distribution playback');
+        
+        // Calculate total video frames from distribution (not from this.totalFramesNeeded)
+        const totalVideoFramesNeeded = this.frameDistribution.reduce((sum, range) => sum + range.videoFrameCount, 0);
+        let totalVideoFramesGenerated = 0;
+        
+        console.log(`Total video frames to generate: ${totalVideoFramesNeeded} (duration: ${totalVideoFramesNeeded / this.frameRate}s)`);
+        
+        for (const range of this.frameDistribution) {
+            console.log(`Processing ${range.type} range: source frames ${range.sourceStartFrame}-${range.sourceEndFrame}, video frames: ${range.videoFrameCount}, duration: ${range.duration}s`);
+            
+            const sourceFrames = [];
+            for (let i = range.sourceStartFrame; i <= range.sourceEndFrame; i++) {
+                if (i < this.capturedFrames.length) {
+                    sourceFrames.push(this.capturedFrames[i]);
+                }
+            }
+            
+            if (sourceFrames.length === 0) {
+                console.warn(`No source frames found for range ${range.sourceStartFrame}-${range.sourceEndFrame}`);
+                continue;
+            }
+            
+            // Generate EXACTLY the specified number of video frames for this range
+            const videoFramesForRange = range.videoFrameCount;
+            const sourceFrameStep = sourceFrames.length > 1 ? (sourceFrames.length - 1) / (videoFramesForRange - 1) : 0;
+            
+            console.log(`Generating exactly ${videoFramesForRange} video frames from ${sourceFrames.length} source frames (step: ${sourceFrameStep})`);
+            
+            for (let i = 0; i < videoFramesForRange; i++) {
+                // Calculate which source frame to use with better interpolation
+                let sourceFrameIndex;
+                if (sourceFrames.length === 1) {
+                    sourceFrameIndex = 0;
+                } else if (i === videoFramesForRange - 1) {
+                    sourceFrameIndex = sourceFrames.length - 1; // Always use last frame for final video frame
+                } else {
+                    sourceFrameIndex = Math.round(i * sourceFrameStep);
+                }
+                
+                const frameIndex = Math.min(sourceFrameIndex, sourceFrames.length - 1);
+                
+                // Draw the frame
+                await this.drawFrameToCanvas(ctx, sourceFrames[frameIndex]);
+                
+                totalVideoFramesGenerated++;
+                
+                // Update progress based on actual total frames needed
+                const progress = (totalVideoFramesGenerated / totalVideoFramesNeeded) * 100;
+                if (progressCallback) {
+                    progressCallback(progress);
+                }
+                
+                // Wait for next frame timing (except for last frame)
+                if (totalVideoFramesGenerated < totalVideoFramesNeeded) {
+                    await new Promise(resolve => setTimeout(resolve, frameInterval));
+                }
+            }
+        }
+        
+        console.log(`Effect-based frame playback completed. Generated ${totalVideoFramesGenerated} video frames (expected: ${totalVideoFramesNeeded})`);
+        
+        // Verify we generated the correct number of frames
+        if (totalVideoFramesGenerated !== totalVideoFramesNeeded) {
+            console.warn(`Frame count mismatch! Generated: ${totalVideoFramesGenerated}, Expected: ${totalVideoFramesNeeded}`);
+        }
     }
     
     drawFrameToCanvas(ctx, dataURL) {
@@ -3937,13 +4035,13 @@ function loadBoundaryResults(fileId) {
     const sensitivity = document.getElementById('boundarySensitivity').value;
     const fragmentation = document.getElementById('boundaryFragmentation').value;
     
-    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
+//    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
     
     fetch(`/boundaries/${fileId}?sensitivity=${sensitivity}&fragmentation=${fragmentation}`)
     .then(response => response.json())
     .then(data => {
-        console.log(`DEBUG: Frontend API response:`, data);
-        console.log(`DEBUG: Frontend received ${data.boundary_data ? data.boundary_data.length : 0} boundaries`);
+//        console.log(`DEBUG: Frontend API response:`, data);
+//        console.log(`DEBUG: Frontend received ${data.boundary_data ? data.boundary_data.length : 0} boundaries`);
         if (data.boundary_data && data.boundary_data.length >= 0) {
             canvasData.boundaries = data.boundary_data;
             displayBoundaryResults(data.boundary_data);
@@ -3958,7 +4056,7 @@ function loadBoundaryResults(fileId) {
 }
 
 function displayBoundaryResults(boundaries) {
-    console.log(`DEBUG: displayBoundaryResults called with ${boundaries.length} boundaries`);
+//    console.log(`DEBUG: displayBoundaryResults called with ${boundaries.length} boundaries`);
     const boundaryResults = document.getElementById('boundaryResults');
     const boundaryList = document.getElementById('boundaryList');
     
@@ -4279,6 +4377,7 @@ function resetDrawingCanvas() {
     if (canvasData) {
         canvasData.cumulativeFrames = [];
         canvasData.videoResults = [];
+        canvasData.appliedEffects = []; // Clear applied effects tracking
     }
     
     // Hide video preview area
@@ -4399,11 +4498,30 @@ function playLightEffectAnimation(frames) {
         canvasData.cumulativeFrames = [];
     }
     
+    // Record the starting frame index for this effect
+    const effectStartFrame = canvasData.cumulativeFrames.length;
+    
     function displayNextFrame() {
         if (currentFrame >= totalFrames) {
-            // Animation complete
+            // Animation complete - record the effect application
+            const effectEndFrame = canvasData.cumulativeFrames.length - 1;
+            
+            // Track this effect application
+            canvasData.appliedEffects.push({
+                type: 'light_effect',
+                startFrame: effectStartFrame,
+                endFrame: effectEndFrame,
+                frameCount: totalFrames,
+                timestamp: new Date().toISOString(),
+                duration: 3 // Each effect gets 3 seconds in video
+            });
+            
             console.log('Light effect animation completed');
+            console.log(`Effect tracked: frames ${effectStartFrame}-${effectEndFrame} (${totalFrames} frames)`);
             showAlert('Анимация эффекта освещения завершена! Кадры добавлены для видео.', 'success');
+            
+            // Display effect tracking info
+            displayEffectTrackingInfo();
             return;
         }
         
@@ -4432,4 +4550,118 @@ function playLightEffectAnimation(frames) {
     
     // Start animation
     displayNextFrame();
+}
+
+// Function to display effect tracking information
+function displayEffectTrackingInfo() {
+    if (canvasData.appliedEffects.length === 0) {
+        return;
+    }
+    
+    console.log('Applied Effects Summary:');
+    canvasData.appliedEffects.forEach((effect, index) => {
+        console.log(`${index + 1}. ${effect.type}: frames ${effect.startFrame}-${effect.endFrame} (${effect.frameCount} frames, ${effect.duration}s allocated)`);
+    });
+    
+    const totalEffectTime = canvasData.appliedEffects.reduce((sum, effect) => sum + effect.duration, 0);
+    console.log(`Total effect time allocated: ${totalEffectTime} seconds`);
+}
+
+// Function to calculate frame distribution based on applied effects
+function calculateEffectBasedFrameDistribution(videoDuration, videoFps) {
+    const totalFrames = canvasData.cumulativeFrames.length;
+    const appliedEffects = canvasData.appliedEffects;
+    
+    // Calculate total time allocated to effects (3 seconds each)
+    const totalEffectTime = appliedEffects.length * 3;
+    
+    // Calculate remaining time for regular drawing frames
+    const remainingTime = Math.max(0, videoDuration - totalEffectTime);
+    
+    console.log(`Video duration: ${videoDuration}s, Effects: ${appliedEffects.length} (${totalEffectTime}s), Remaining: ${remainingTime}s`);
+    
+    // IMPORTANT: Calculate total video frames based on REQUESTED duration, not source frames
+    const totalVideoFrames = videoDuration * videoFps;
+    const effectVideoFrames = 3 * videoFps; // Each effect gets exactly 3 seconds worth of video frames
+    
+    console.log(`Total video frames needed: ${totalVideoFrames}, Effect frames each: ${effectVideoFrames}`);
+    
+    // Create frame distribution array
+    const distribution = [];
+    
+    // Sort effects by their start frame to process in order
+    const sortedEffects = [...appliedEffects].sort((a, b) => a.startFrame - b.startFrame);
+    
+    let currentSourceFrame = 0;
+    
+    for (const effect of sortedEffects) {
+        // Add regular frames before this effect (if any)
+        if (currentSourceFrame < effect.startFrame) {
+            const regularFrameCount = effect.startFrame - currentSourceFrame;
+            distribution.push({
+                type: 'regular',
+                sourceStartFrame: currentSourceFrame,
+                sourceEndFrame: effect.startFrame - 1,
+                sourceFrameCount: regularFrameCount,
+                duration: 0, // Will be calculated later
+                videoFrameCount: 0 // Will be calculated later
+            });
+        }
+        
+        // Add the effect with exactly 3 seconds allocation
+        distribution.push({
+            type: 'effect',
+            sourceStartFrame: effect.startFrame,
+            sourceEndFrame: effect.endFrame,
+            sourceFrameCount: effect.frameCount,
+            videoFrameCount: effectVideoFrames, // Exactly 3 seconds worth
+            duration: 3,
+            effectType: effect.type
+        });
+        
+        currentSourceFrame = effect.endFrame + 1;
+    }
+    
+    // Add remaining regular frames after all effects
+    if (currentSourceFrame < totalFrames) {
+        const regularFrameCount = totalFrames - currentSourceFrame;
+        distribution.push({
+            type: 'regular',
+            sourceStartFrame: currentSourceFrame,
+            sourceEndFrame: totalFrames - 1,
+            sourceFrameCount: regularFrameCount,
+            duration: 0, // Will be calculated later
+            videoFrameCount: 0 // Will be calculated later
+        });
+    }
+    
+    // Calculate video frames for regular ranges
+    const regularRanges = distribution.filter(range => range.type === 'regular');
+    const totalEffectVideoFrames = appliedEffects.length * effectVideoFrames;
+    const remainingVideoFrames = Math.max(0, totalVideoFrames - totalEffectVideoFrames);
+    const totalRegularFrames = regularRanges.reduce((sum, range) => sum + range.sourceFrameCount, 0);
+    
+    console.log(`Remaining video frames for regular content: ${remainingVideoFrames}`);
+    
+    if (totalRegularFrames > 0 && remainingVideoFrames > 0) {
+        regularRanges.forEach(range => {
+            const proportion = range.sourceFrameCount / totalRegularFrames;
+            range.videoFrameCount = Math.max(1, Math.round(remainingVideoFrames * proportion));
+            range.duration = range.videoFrameCount / videoFps;
+        });
+    } else {
+        // If no remaining frames, give minimal allocation to regular ranges
+        regularRanges.forEach(range => {
+            range.videoFrameCount = Math.max(1, Math.round(0.1 * videoFps)); // 100ms minimum
+            range.duration = range.videoFrameCount / videoFps;
+        });
+    }
+    
+    // Verify total duration matches requested duration
+    const calculatedTotalFrames = distribution.reduce((sum, range) => sum + range.videoFrameCount, 0);
+    const calculatedDuration = calculatedTotalFrames / videoFps;
+    
+    console.log(`Calculated total frames: ${calculatedTotalFrames}, duration: ${calculatedDuration}s (requested: ${videoDuration}s)`);
+    
+    return distribution;
 }
