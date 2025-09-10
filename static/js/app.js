@@ -723,7 +723,7 @@ function calculateImageToCanvasScale(imageWidth, imageHeight, canvasWidth, canva
     console.log(`DEBUG calculateImageToCanvasScale: Scale factors calculated:`, scaleX, scaleY);
 
     // Use smaller scale to ensure image fits completely within canvas
-    const scale = Math.min(scaleX, scaleY);
+    const scale = Math.max(scaleX, scaleY);
 
     console.log(`DEBUG calculateImageToCanvasScale: Final scale:`, scale);
 
@@ -759,22 +759,22 @@ function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanva
     if (!existingCanvasWidth || !existingCanvasHeight) {
         return { scale: 1, offsetX: 0, offsetY: 0 };
     }
-    
+
     // Calculate scale factors for both dimensions
     const scaleX = newImageWidth / existingCanvasWidth;
     const scaleY = newImageHeight / existingCanvasHeight;
-    
+
     // Use the smaller scale to ensure canvas content fits within new image bounds
     // This is correct for both larger and smaller images
-    const scale = Math.min(scaleX, scaleY);
-    
+    const scale = Math.max(scaleX, scaleY);
+
     // Calculate centered positioning
     const scaledCanvasWidth = existingCanvasWidth * scale;
     const scaledCanvasHeight = existingCanvasHeight * scale;
-    
+
     const offsetX = (newImageWidth - scaledCanvasWidth) / 2;
     const offsetY = (newImageHeight - scaledCanvasHeight) / 2;
-    
+
     console.log(`DEBUG calculateOptimalImageScale:`);
     console.log(`  Existing canvas: ${existingCanvasWidth}x${existingCanvasHeight}`);
     console.log(`  New image: ${newImageWidth}x${newImageHeight}`);
@@ -790,27 +790,6 @@ function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanva
         scaledWidth: scaledCanvasWidth,
         scaledHeight: scaledCanvasHeight
     };
-}
-
-// Function to preserve canvas content when loading new image with scaling
-function preserveCanvasWithScaling(newImageWidth, newImageHeight) {
-    const canvas = document.getElementById('drawingCanvas');
-    if (!canvas || !canvasData.canvasInitialized) {
-        return false;
-    }
-    
-    const existingWidth = canvas.width;
-    const existingHeight = canvas.height;
-    
-    // Calculate optimal scaling
-    const scaleInfo = calculateOptimalImageScale(newImageWidth, newImageHeight, existingWidth, existingHeight);
-    
-    // Store scaling information for later use
-    canvasData.imageScaling = scaleInfo;
-    canvasData.originalCanvasSize = { width: existingWidth, height: existingHeight };
-    
-    console.log('Preserved canvas with scaling info:', scaleInfo);
-    return true;
 }
 
 function showSegmentationResults(fileId) {
@@ -1338,13 +1317,13 @@ function initializeInteractiveCanvas(fileId) {
             // Calculate scaling for preserving existing canvas content
             // Note: This function calculates how to scale existing canvas content to fit in new canvas
             // Parameters: (newCanvasWidth, newCanvasHeight, existingCanvasWidth, existingCanvasHeight)
-            console.log('DEBUG: About to call calculateOptimalImageScale with:', canvasSize.width, canvasSize.height, existingWidth, existingHeight);
-            const canvasPreservationScale = calculateOptimalImageScale(canvasSize.width, canvasSize.height, existingWidth, existingHeight);
-            console.log('DEBUG: calculateOptimalImageScale returned:', canvasPreservationScale);
+//            console.log('DEBUG: About to call calculateOptimalImageScale with:', canvasSize.width, canvasSize.height, existingWidth, existingHeight);
+//            const canvasPreservationScale = calculateOptimalImageScale(canvasSize.width, canvasSize.height, existingWidth, existingHeight);
+//            console.log('DEBUG: calculateOptimalImageScale returned:', canvasPreservationScale);
 
             canvasData.originalCanvasSize = { width: existingWidth, height: existingHeight };
 
-            console.log('DEBUG: Canvas preservation scaling info:', canvasPreservationScale);
+//            console.log('DEBUG: Canvas preservation scaling info:', canvasPreservationScale);
             // Calculate image scaling to fit in canvas (this is what we need for drawing)
             console.log('DEBUG: About to calculate image scaling with params:', img.width, img.height, canvasSize.width, canvasSize.height);
 
@@ -3613,13 +3592,34 @@ class VideoRecorder {
         if (!this.isRecording) return;
         
         try {
-            // Capture canvas as data URL
-            const dataURL = this.canvas.toDataURL('image/jpeg', 0.8);
-            this.capturedFrames.push(dataURL);
+            // Get the original canvas dimensions
+            const sourceWidth = this.canvas.width;
+            const sourceHeight = this.canvas.height;
+            
+            // Create a temporary canvas with the same dimensions as the source
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = sourceWidth;
+            tempCanvas.height = sourceHeight;
+            
+            // Copy the current canvas content at 1:1 scale
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(this.canvas, 0, 0, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+            
+            // Capture the canvas as data URL without any scaling
+            const dataURL = tempCanvas.toDataURL('image/png');
+            this.capturedFrames.push({
+                dataURL: dataURL,
+                width: sourceWidth,
+                height: sourceHeight
+            });
+            
+            // Clean up
+            tempCanvas.width = 0;
+            tempCanvas.height = 0;
             
             // Log progress occasionally
             if (this.capturedFrames.length % 10 === 0) {
-                console.log(`Captured ${this.capturedFrames.length} frames`);
+                console.log(`Captured ${this.capturedFrames.length} frames at ${displayWidth}x${displayHeight}`);
             }
         } catch (error) {
             console.error('Error capturing frame:', error);
@@ -3649,19 +3649,25 @@ class VideoRecorder {
         console.log(`Creating ${this.isCumulative ? 'cumulative' : 'time-compressed'} video from ${this.capturedFrames.length} frames`);
         
         try {
-            // Create a temporary canvas for video generation
+            // Use the dimensions from the first frame
+            const firstFrame = this.capturedFrames[0];
+            
+            // Create a temporary canvas for video generation with the same dimensions as the frames
             const videoCanvas = document.createElement('canvas');
+            videoCanvas.width = firstFrame.width;
+            videoCanvas.height = firstFrame.height;
             const ctx = videoCanvas.getContext('2d');
             
-            // Set canvas size to match original
-            videoCanvas.width = this.canvas.width;
-            videoCanvas.height = this.canvas.height;
+            // Set background color
+            ctx.fillStyle = canvasData.backgroundColor || '#ffffff';
+            ctx.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
             
             // Create video stream from temporary canvas
             const stream = videoCanvas.captureStream(this.frameRate);
             
-            // Set up MediaRecorder
-            const mimeType = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            // Set up MediaRecorder with better quality settings
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 
+                            MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: mimeType,
                 videoBitsPerSecond: 2500000
@@ -3748,7 +3754,10 @@ class VideoRecorder {
                 
                 // Play back frames at the correct timing with progress tracking
                 this.playbackFramesWithProgress(videoCanvas, ctx, progressCallback).then(() => {
-                    mediaRecorder.stop();
+                    // Give it a moment to process the last frame
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                    }, 100);
                 });
             });
             
@@ -3897,28 +3906,24 @@ class VideoRecorder {
         }
     }
     
-    drawFrameToCanvas(ctx, dataURL) {
+    drawFrameToCanvas(ctx, frameData) {
         return new Promise((resolve) => {
             const img = new Image();
             img.onload = () => {
+                // Clear the canvas
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                // Apply proper scaling and translation for the image
-                if (canvasData.imageScaling) {
-                    ctx.save();
-                    ctx.translate(canvasData.imageScaling.offsetX, canvasData.imageScaling.offsetY);
-                    ctx.scale(canvasData.imageScaling.scale, canvasData.imageScaling.scale);
-                    ctx.drawImage(img, 0, 0);
-                    ctx.restore();
-                } else {
-                    ctx.drawImage(img, 0, 0);
-                }
+                
+                // Draw the image at full size
+                ctx.drawImage(img, 0, 0, ctx.canvas.width, ctx.canvas.height);
                 resolve();
             };
-            img.onerror = () => {
-                console.error('Failed to load frame image');
+            img.onerror = (e) => {
+                console.error('Failed to load frame image:', e);
                 resolve();
             };
-            img.src = dataURL;
+            
+            // Set the source after setting up the event handlers
+            img.src = frameData.dataURL || frameData;
         });
     }
 }
