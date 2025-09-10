@@ -1949,8 +1949,32 @@ class DrawingEffectGenerator:
         if progress_callback:
             progress_callback(5, "Loading image for boundary detection...")
         
-        # Load and preprocess image
-        image = self._load_and_preprocess_image(input_path)
+        # CRITICAL FIX: Use the same image dimensions as stroke generation
+        # Load the mean color image to ensure coordinate system consistency
+        mean_color_files = [f for f in os.listdir(output_dir) 
+                           if f.startswith(f"{file_id}_") and 'mean_colors' in f and f.endswith('.png')]
+        if not mean_color_files:
+            # Fallback to original image preprocessing if mean color image not found
+            image = self._load_and_preprocess_image(input_path)
+        else:
+            # Use the newest mean color image for consistent coordinate system
+            mean_color_files_with_time = []
+            for mean_color_file in mean_color_files:
+                file_path = os.path.join(output_dir, mean_color_file)
+                mod_time = os.path.getmtime(file_path)
+                mean_color_files_with_time.append((mean_color_file, mod_time))
+            
+            # Sort by modification time (newest first)
+            mean_color_files_with_time.sort(key=lambda x: x[1], reverse=True)
+            newest_mean_color_file = mean_color_files_with_time[0][0]
+            
+            mean_color_path = os.path.join(output_dir, newest_mean_color_file)
+            print(f"Using mean color image for boundary detection: {mean_color_path}")
+            
+            # Load mean color image to ensure same coordinate system as strokes
+            image = cv2.imread(mean_color_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            print(f"🔍 DEBUG: Boundary detection using mean color image size: {image.shape[:2]} (H x W)")
         
         if progress_callback:
             progress_callback(15, "Generating segmentation for boundary detection...")
@@ -2432,8 +2456,8 @@ class DrawingEffectGenerator:
                     }
                 })
         
-        # Sort boundaries by contrast ratio (highest first)
-        boundary_data.sort(key=lambda x: x['contrast_ratio'], reverse=True)
+        # Sort boundaries by length (longest first) as requested
+        boundary_data.sort(key=lambda x: x['length'], reverse=True)
         
         # With fragmentation, we want to keep ALL fragments that pass contrast filtering
         # Don't limit the number of boundaries when fragmentation is used
@@ -2695,9 +2719,9 @@ class DrawingEffectGenerator:
         
         boundaries = boundary_info['boundaries']
         
-        # Sort boundaries by contrast (descending order)
+        # Sort boundaries by length (longest first) as requested
         sorted_boundaries = sorted(boundaries, 
-                                 key=lambda x: x['contrast_ratio'], reverse=True)
+                                 key=lambda x: x['length'], reverse=True)
         
         # Take only the most contrasted half
         half_count = max(1, len(sorted_boundaries) // 2)

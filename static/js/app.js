@@ -2,6 +2,7 @@
 
 let currentFileId = null;
 let processingInterval = null;
+let boundaryProcessingInterval = null;
 
 // Style descriptions
 const styleDescriptions = {
@@ -76,7 +77,6 @@ function initializeEventListeners() {
     const fileInput = document.getElementById('fileInput');
     const uploadArea = document.getElementById('uploadArea');
     const chooseFileBtn = document.getElementById('chooseFileBtn');
-    const styleSelect = document.getElementById('styleSelect');
     const colorThreshold = document.getElementById('colorThreshold');
     const videoDuration = document.getElementById('videoDuration');
     const strokeDensity = document.getElementById('strokeDensity');
@@ -104,8 +104,6 @@ function initializeEventListeners() {
         fileInput.click();
     });
 
-    // Style selection change
-    styleSelect.addEventListener('change', updateStyleDescription);
 
     // Range sliders
     colorThreshold.addEventListener('input', function() {
@@ -407,7 +405,7 @@ function processImage() {
         return;
     }
 
-    const style = document.getElementById('styleSelect').value;
+    const style = 'pencil'; // Fixed to pencil since we removed style selection
     const colorThreshold = parseInt(document.getElementById('colorThreshold').value);
     const videoDuration = parseInt(document.getElementById('videoDuration').value);
     const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
@@ -459,7 +457,7 @@ function processSegmentation() {
         return;
     }
 
-    const style = document.getElementById('styleSelect').value;
+    const style = 'pencil'; // Fixed to pencil since we removed style selection
     const colorThreshold = parseInt(document.getElementById('colorThreshold').value);
     const videoDuration = parseInt(document.getElementById('videoDuration').value);
     const strokeDensity = parseFloat(document.getElementById('strokeDensity').value);
@@ -535,13 +533,20 @@ function startStatusPolling(fileId, mode = 'video') {
                 clearInterval(processingInterval);
                 if (mode === 'segmentation') {
                     showSegmentationResults(fileId);
+                } else if (mode === 'boundaries') {
+                    loadBoundaryResults(fileId);
+                    resetBoundaryButton();
                 } else {
                     showResults(fileId);
                 }
             } else if (data.status === 'error') {
                 clearInterval(processingInterval);
                 showAlert('Processing failed: ' + data.message, 'danger');
-                resetSegmentButton();
+                if (mode === 'boundaries') {
+                    resetBoundaryButton();
+                } else {
+                    resetSegmentButton();
+                }
             }
         })
         .catch(error => {
@@ -563,6 +568,22 @@ function updateProcessingStatus(data) {
         statusMessage.classList.add('processing-pulse');
     } else {
         statusMessage.classList.remove('processing-pulse');
+    }
+}
+
+function updateBoundaryProcessingStatus(data) {
+    const boundaryProgressBar = document.getElementById('boundaryProgressBar');
+    const boundaryStatusMessage = document.getElementById('boundaryStatusMessage');
+
+    boundaryProgressBar.style.width = `${data.progress || 0}%`;
+    boundaryProgressBar.textContent = `${data.progress || 0}%`;
+    boundaryStatusMessage.textContent = data.message || 'Detecting boundaries...';
+
+    // Add pulse animation during processing
+    if (data.status === 'processing') {
+        boundaryStatusMessage.classList.add('processing-pulse');
+    } else {
+        boundaryStatusMessage.classList.remove('processing-pulse');
     }
 }
 
@@ -1579,6 +1600,7 @@ function stopDrawingAll() {
     const drawLargeBtn = document.getElementById('drawLargeBtn');
     const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
+    const highlightBtn = document.getElementById('highlightBoundariesBtn');
     const progressDiv = document.getElementById('drawingProgress');
     
     if (stopBtn) stopBtn.style.display = 'none';
@@ -1602,6 +1624,11 @@ function stopDrawingAll() {
         drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
         drawSmallBtn.style.display = 'inline-block';
     }
+    if (highlightBtn) {
+        highlightBtn.disabled = false;
+        highlightBtn.innerHTML = '<i class="fas fa-highlighter"></i> Highlight Boundaries';
+        highlightBtn.style.display = 'inline-block';
+    }
     if (progressDiv) progressDiv.style.display = 'none';
     
     // Reset progress bars
@@ -1609,6 +1636,20 @@ function stopDrawingAll() {
     
     // Hide video generation progress
     showVideoGenerationProgress(false);
+    
+    // Restore canvas context if it was saved during boundary drawing
+    const canvas = document.getElementById('drawingCanvas');
+    if (canvas) {
+        const ctx = canvas.getContext('2d');
+        // Try to restore context - this is safe even if no context was saved
+        try {
+            ctx.restore();
+            console.log('🔍 DEBUG: Canvas context restored after stopping boundary drawing');
+        } catch (e) {
+            // Context wasn't saved, which is fine
+            console.log('🔍 DEBUG: No canvas context to restore (normal for non-boundary drawing)');
+        }
+    }
     
     stopDrawingTimer();
     showAlert('Drawing stopped by user', 'warning');
@@ -2628,6 +2669,71 @@ function drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, vide
         return;
     }
     
+    // Get canvas and context for scaling
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Apply scaling once at the beginning for all boundary drawing
+    console.log('🔍 DEBUG: Applying scaling for boundary drawing - imageScaling:', canvasData.imageScaling);
+    let contextSaved = false;
+    if (canvasData.imageScaling) {
+        const { scale, offsetX, offsetY } = canvasData.imageScaling;
+        console.log('Applying scaling for boundaries - scale:', scale, 'offsetX:', offsetX, 'offsetY:', offsetY);
+        ctx.save();
+        contextSaved = true;
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+    } else {
+        console.log('No scaling applied for boundaries - drawing at original coordinates');
+    }
+    
+    // Function to restore canvas context and UI state
+    function restoreStateAfterBoundaryDrawing() {
+        // Restore canvas context
+        if (contextSaved) {
+            ctx.restore();
+            console.log('🔍 DEBUG: Canvas context restored after boundary drawing');
+        }
+        
+        // Restore UI buttons
+        const progressDiv = document.getElementById('drawingProgress');
+        const drawAllBtn = document.getElementById('drawAllBtn');
+        const drawLargeBtn = document.getElementById('drawLargeBtn');
+        const drawMediumBtn = document.getElementById('drawMediumBtn');
+        const drawSmallBtn = document.getElementById('drawSmallBtn');
+        const highlightBtn = document.getElementById('highlightBoundariesBtn');
+        const stopBtn = document.getElementById('stopDrawingBtn');
+        
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (drawAllBtn) {
+            drawAllBtn.disabled = false;
+            drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
+            drawAllBtn.style.display = 'inline-block';
+        }
+        if (drawLargeBtn) {
+            drawLargeBtn.disabled = false;
+            drawLargeBtn.innerHTML = '<i class="fas fa-expand"></i> Large Fragments';
+            drawLargeBtn.style.display = 'inline-block';
+        }
+        if (drawMediumBtn) {
+            drawMediumBtn.disabled = false;
+            drawMediumBtn.innerHTML = '<i class="fas fa-circle"></i> Medium Fragments';
+            drawMediumBtn.style.display = 'inline-block';
+        }
+        if (drawSmallBtn) {
+            drawSmallBtn.disabled = false;
+            drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
+            drawSmallBtn.style.display = 'inline-block';
+        }
+        if (highlightBtn) {
+            highlightBtn.disabled = false;
+            highlightBtn.innerHTML = '<i class="fas fa-highlighter"></i> Highlight Boundaries';
+            highlightBtn.style.display = 'inline-block';
+        }
+        if (stopBtn) stopBtn.style.display = 'none';
+        stopDrawingTimer();
+    }
+    
     // Show animation section
     showAnimationSection();
     
@@ -2697,7 +2803,7 @@ function drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, vide
     function drawNextHighlightBoundary() {
         // Check if drawing was interrupted
         if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
-            stopDrawingTimer();
+            restoreStateAfterBoundaryDrawing();
             if (videoRecorder) {
                 videoRecorder.stop();
             }
@@ -2706,43 +2812,8 @@ function drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, vide
         
         // Check if we've drawn all boundaries
         if (currentIndex >= highlightSegments.length) {
-            // Finished drawing all boundaries - restore UI
-            const progressDiv = document.getElementById('drawingProgress');
-            const drawAllBtn = document.getElementById('drawAllBtn');
-            const drawLargeBtn = document.getElementById('drawLargeBtn');
-            const drawMediumBtn = document.getElementById('drawMediumBtn');
-            const drawSmallBtn = document.getElementById('drawSmallBtn');
-            const highlightBtn = document.getElementById('highlightBoundariesBtn');
-            const stopBtn = document.getElementById('stopDrawingBtn');
-            
-            if (progressDiv) progressDiv.style.display = 'none';
-            if (drawAllBtn) {
-                drawAllBtn.disabled = false;
-                drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
-                drawAllBtn.style.display = 'inline-block';
-            }
-            if (drawLargeBtn) {
-                drawLargeBtn.disabled = false;
-                drawLargeBtn.innerHTML = '<i class="fas fa-expand"></i> Large Fragments';
-                drawLargeBtn.style.display = 'inline-block';
-            }
-            if (drawMediumBtn) {
-                drawMediumBtn.disabled = false;
-                drawMediumBtn.innerHTML = '<i class="fas fa-circle"></i> Medium Fragments';
-                drawMediumBtn.style.display = 'inline-block';
-            }
-            if (drawSmallBtn) {
-                drawSmallBtn.disabled = false;
-                drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
-                drawSmallBtn.style.display = 'inline-block';
-            }
-            if (highlightBtn) {
-                highlightBtn.disabled = false;
-                highlightBtn.innerHTML = '<i class="fas fa-highlighter"></i> Highlight Boundaries';
-                highlightBtn.style.display = 'inline-block';
-            }
-            if (stopBtn) stopBtn.style.display = 'none';
-            stopDrawingTimer();
+            // Finished drawing all boundaries - restore UI and canvas context
+            restoreStateAfterBoundaryDrawing();
             
             // Finalize video
             if (videoRecorder) {
@@ -3266,7 +3337,7 @@ function resetApp() {
     };
     
     // Reset form values
-    document.getElementById('styleSelect').value = 'pencil';
+    // Style selection removed - always using pencil
     document.getElementById('colorThreshold').value = 10;
     document.getElementById('thresholdValue').textContent = '10';
     document.getElementById('videoDuration').value = 10;
@@ -3276,6 +3347,11 @@ function resetApp() {
     if (processingInterval) {
         clearInterval(processingInterval);
         processingInterval = null;
+    }
+    
+    if (boundaryProcessingInterval) {
+        clearInterval(boundaryProcessingInterval);
+        boundaryProcessingInterval = null;
     }
     
     resetSegmentButton();
@@ -3407,13 +3483,10 @@ function clearVideoResults() {
 }
 
 function updateStyleDescription() {
-    const styleSelect = document.getElementById('styleSelect');
+    // Style selection removed - always using pencil
     const description = document.getElementById('styleDescription');
     const stylePreview = document.querySelector('.style-preview');
-
-    if (!styleSelect) return;
-    
-    const style = styleSelect.value;
+    const style = 'pencil';
 
     if (description && styleDescriptions[style]) {
         description.textContent = styleDescriptions[style];
@@ -4146,12 +4219,17 @@ function detectBoundaries() {
     const sensitivity = document.getElementById('boundarySensitivity').value;
     const fragmentation = document.getElementById('boundaryFragmentation').value;
     const boundariesBtn = document.getElementById('boundariesBtn');
+    const boundaryProcessingStatus = document.getElementById('boundaryProcessingStatus');
+    const boundaryProgressBar = document.getElementById('boundaryProgressBar');
+    const boundaryStatusMessage = document.getElementById('boundaryStatusMessage');
     
-    // Disable button and show loading state
+    // Disable button and show boundary progress bar
     boundariesBtn.disabled = true;
     boundariesBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Detecting Boundaries...';
-    
-    showAlert('Starting boundary detection...', 'info');
+    boundaryProcessingStatus.style.display = 'block';
+    boundaryProgressBar.style.width = '0%';
+    boundaryProgressBar.textContent = '0%';
+    boundaryStatusMessage.textContent = 'Starting boundary detection...';
 
     fetch('/detect_boundaries', {
         method: 'POST',
@@ -4167,47 +4245,52 @@ function detectBoundaries() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showAlert('Boundary detection started. Please wait...', 'info');
-            // Start polling for boundary detection status
-            pollBoundaryStatus(currentFileId);
+            // Use specialized boundary status polling with progress bar
+            startBoundaryStatusPolling(currentFileId);
         } else {
-            showAlert(data.error || 'Failed to start boundary detection', 'danger');
-            resetBoundaryButton();
+            throw new Error(data.error || 'Boundary detection failed');
         }
     })
     .catch(error => {
         console.error('Boundary detection error:', error);
-        showAlert('Failed to start boundary detection. Please try again.', 'danger');
+        showAlert('Error detecting boundaries: ' + error.message, 'danger');
         resetBoundaryButton();
     });
 }
 
-function pollBoundaryStatus(fileId) {
-    const statusInterval = setInterval(() => {
+function startBoundaryStatusPolling(fileId) {
+    if (boundaryProcessingInterval) {
+        clearInterval(boundaryProcessingInterval);
+    }
+    
+    boundaryProcessingInterval = setInterval(() => {
         fetch(`/boundary_status/${fileId}`)
         .then(response => response.json())
         .then(data => {
+            // Update boundary progress bar with boundary detection progress
+            updateBoundaryProcessingStatus({
+                progress: data.progress || 0,
+                message: data.message || 'Detecting boundaries...',
+                status: data.status
+            });
+            
             if (data.status === 'completed') {
-                clearInterval(statusInterval);
-                showAlert('Boundary detection completed!', 'success');
+                clearInterval(boundaryProcessingInterval);
                 loadBoundaryResults(fileId);
                 resetBoundaryButton();
             } else if (data.status === 'error') {
-                clearInterval(statusInterval);
-                showAlert(data.error || 'Boundary detection failed', 'danger');
+                clearInterval(boundaryProcessingInterval);
+                showAlert('Boundary detection failed: ' + (data.error || data.message), 'danger');
                 resetBoundaryButton();
-            } else if (data.status === 'processing') {
-                // Continue polling
-                showAlert('Detecting boundaries... Please wait.', 'info');
             }
         })
         .catch(error => {
-            console.error('Status polling error:', error);
-            clearInterval(statusInterval);
+            console.error('Boundary status polling error:', error);
+            clearInterval(boundaryProcessingInterval);
             showAlert('Failed to check boundary detection status', 'danger');
             resetBoundaryButton();
         });
-    }, 2000); // Poll every 2 seconds
+    }, 1000); // Poll every 1 second
 }
 
 function loadBoundaryResults(fileId) {
@@ -4284,7 +4367,10 @@ function displayBoundaryResults(boundaries) {
 }
 
 function drawBoundary(boundaryId, colorType) {
+    console.log('🔍 DEBUG: drawBoundary function called with:', boundaryId, colorType);
+    
     if (!currentFileId) {
+        console.log('🔍 DEBUG: No currentFileId, showing warning');
         showAlert('No image loaded', 'warning');
         return;
     }
@@ -4293,8 +4379,15 @@ function drawBoundary(boundaryId, colorType) {
     
     // Initialize canvas if needed
     if (!canvasData.canvasInitialized) {
+        console.log('🔍 DEBUG: Canvas not initialized, initializing for boundary drawing...');
         initializeInteractiveCanvas(currentFileId);
     }
+    
+    // Debug: Check canvas state before drawing boundary
+    console.log('🔍 DEBUG: Canvas state before boundary drawing:');
+    console.log('  - canvasInitialized:', canvasData.canvasInitialized);
+    console.log('  - imageScaling:', canvasData.imageScaling);
+    console.log('  - currentFileId:', currentFileId);
     
     showAlert(`Drawing boundary ${boundaryId} with ${colorType} color...`, 'info');
 
@@ -4313,6 +4406,11 @@ function drawBoundary(boundaryId, colorType) {
     .then(response => response.json())
     .then(data => {
         if (data.success && data.boundary_strokes) {
+            // Debug: Log boundary stroke data and scaling info
+            console.log('🔍 DEBUG: Drawing boundary strokes:', data.boundary_strokes.length, 'strokes');
+            console.log('🔍 DEBUG: Current imageScaling:', canvasData.imageScaling);
+            console.log('🔍 DEBUG: Sample boundary stroke:', data.boundary_strokes[0]);
+            
             // Draw the boundary strokes on the canvas
             applyBrushStrokesFast(data.boundary_strokes, `boundary_${boundaryId}`);
             showAlert(`Boundary ${boundaryId} drawn successfully!`, 'success');
@@ -4330,6 +4428,13 @@ function resetBoundaryButton() {
     const boundariesBtn = document.getElementById('boundariesBtn');
     boundariesBtn.disabled = false;
     boundariesBtn.innerHTML = '<i class="fas fa-search"></i> Detect Boundaries';
+    document.getElementById('boundaryProcessingStatus').style.display = 'none';
+    
+    // Clear boundary processing interval if it exists
+    if (boundaryProcessingInterval) {
+        clearInterval(boundaryProcessingInterval);
+        boundaryProcessingInterval = null;
+    }
 }
 
 function drawAllBoundaries() {
