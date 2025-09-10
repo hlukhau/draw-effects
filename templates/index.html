@@ -56,21 +56,29 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <label for="canvasFormat" class="form-label">Canvas Format</label>
+                                <select class="form-select" id="canvasFormat">
+                                    <option value="auto">Auto (Image Size)</option>
+                                    <option value="sd">SD (640×480)</option>
+                                    <option value="hd" selected>HD (1280×720)</option>
+                                    <option value="fhd">Full HD (1920×1080)</option>
+                                </select>
+                                <div class="form-text">Canvas size for drawing and video output</div>
+                            </div>
+                            <div class="col-md-3">
                                 <label for="styleSelect" class="form-label">Drawing Style</label>
                                 <select class="form-select" id="styleSelect">
                                     <option value="pencil" selected>Pencil Sketching</option>
-                                    <option value="brush">Brush Painting</option>
-                                    <option value="sprite_brush">Sprite Brush Painting</option>
                                 </select>
-                                <div class="form-text">Choose between pencil sketching (hatching), brush painting (dots), or sprite brush painting (textured brush strokes)</div>
+                                <div class="form-text">Pencil sketching with hatching techniques</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="colorThreshold" class="form-label">Color Sensitivity: <span id="thresholdValue">30</span></label>
                                 <input type="range" class="form-range" id="colorThreshold" min="10" max="100" value="30">
                                 <div class="form-text">Lower values = more segments (finer details)</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label for="videoDuration" class="form-label">Video Duration: <span id="durationValue">10</span>s</label>
                                 <input type="range" class="form-range" id="videoDuration" min="5" max="60" value="10">
                                 <div class="form-text">Duration of the drawing animation</div>

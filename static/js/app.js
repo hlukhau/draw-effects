@@ -8,6 +8,14 @@ const styleDescriptions = {
     pencil: "Pencil sketching with hatching and cross-hatching techniques, building up from light outlines to detailed shading."
 };
 
+// Canvas format definitions
+const canvasFormats = {
+    auto: { width: null, height: null, name: "Auto (Image Size)" },
+    sd: { width: 640, height: 480, name: "SD (640×480)" },
+    hd: { width: 1280, height: 720, name: "HD (1280×720)" },
+    fhd: { width: 1920, height: 1080, name: "Full HD (1920×1080)" }
+};
+
 // Global variables for canvas interaction
 let canvasData = {
     segments: null,
@@ -26,7 +34,10 @@ let canvasData = {
     cumulativeFrames: [], // Store all frames for cumulative video
     masterVideoRecorder: null, // Single video recorder for cumulative recording
     brushSprites: {}, // Cache for loaded brush sprites
-    appliedEffects: [] // Track applied effects with frame ranges: {type, startFrame, endFrame, timestamp}
+    appliedEffects: [], // Track applied effects with frame ranges: {type, startFrame, endFrame, timestamp}
+    canvasFormat: 'hd', // Selected canvas format
+    imageScaling: null, // Scaling information for drawing
+    originalCanvasSize: null // Original canvas size before scaling
 };
 
 // Global variables for timing
@@ -108,6 +119,41 @@ function initializeEventListeners() {
     videoFps.addEventListener('change', function() {
         document.getElementById('fpsValue').textContent = this.value;
     });
+
+    // Canvas format selection change
+    const canvasFormat = document.getElementById('canvasFormat');
+    if (canvasFormat) {
+        canvasFormat.addEventListener('change', function() {
+            canvasData.canvasFormat = this.value;
+            console.log('Canvas format changed to:', this.value);
+            
+            // If canvas is already initialized, automatically update canvas size
+            if (canvasData.canvasInitialized && canvasData.meanColorImage) {
+                const formatConfig = canvasFormats[this.value];
+                const formatName = formatConfig ? formatConfig.name : 'Auto (Image Size)';
+                
+                console.log('Auto-updating canvas to new format:', formatName);
+                
+                // Re-initialize canvas with new format while preserving state
+                canvasData.preserveCanvasState = true;
+                
+                // Get the current file ID from the mean color image URL
+                const urlMatch = canvasData.meanColorImage.match(/\/outputs\/([^_]+)/);
+                if (urlMatch) {
+                    const fileId = urlMatch[1];
+                    console.log('Re-initializing canvas with fileId:', fileId);
+                    
+                    // Re-initialize canvas with new format
+                    setTimeout(() => {
+                        initializeInteractiveCanvas(fileId);
+                        showAlert(`Canvas format updated to: ${formatName}`, 'success');
+                    }, 100);
+                } else {
+                    showAlert(`Canvas format changed to: ${formatName}. Re-segment to apply changes.`, 'info');
+                }
+            }
+        });
+    }
 
     // New range sliders for stroke density
     strokeDensity.addEventListener('input', function() {
@@ -215,12 +261,17 @@ function showImagePreview(src, fileName) {
     const existingCanvas = document.getElementById('drawingCanvas');
     const hasExistingCanvas = existingCanvas && canvasData.canvasInitialized;
     
+    console.log('DEBUG uploadFile: existingCanvas =', !!existingCanvas);
+    console.log('DEBUG uploadFile: canvasInitialized =', canvasData.canvasInitialized);
+    console.log('DEBUG uploadFile: hasExistingCanvas =', hasExistingCanvas);
+    
     if (hasExistingCanvas) {
         // PRESERVE ALL EXISTING DATA when loading new image
-        console.log('Preserving existing canvas and all data when loading new image');
+        console.log('DEBUG: Preserving existing canvas and all data when loading new image');
         
         // Keep canvas state and all data
         canvasData.preserveCanvasState = true;
+        console.log('DEBUG: Set preserveCanvasState = true');
         
         // DON'T clean up video resources - keep them
         // DON'T reset canvas state - preserve everything
@@ -620,6 +671,68 @@ function ensureUIElementsVisible() {
     }
 }
 
+// Function to calculate canvas size based on format and image
+function calculateCanvasSize(imageWidth, imageHeight, format) {
+    const formatConfig = canvasFormats[format] || canvasFormats.auto;
+    
+    if (format === 'auto' || !formatConfig.width || !formatConfig.height) {
+        // Auto mode - use image size
+        return { width: imageWidth, height: imageHeight };
+    }
+    
+    // Fixed format mode - use format dimensions
+    return { width: formatConfig.width, height: formatConfig.height };
+}
+
+// Function to calculate optimal scaling for image to fit canvas
+function calculateImageToCanvasScale(imageWidth, imageHeight, canvasWidth, canvasHeight) {
+    console.log(`DEBUG calculateImageToCanvasScale: START with params:`, imageWidth, imageHeight, canvasWidth, canvasHeight);
+
+    if (!imageWidth || !imageHeight || !canvasWidth || !canvasHeight) {
+        console.log(`DEBUG calculateImageToCanvasScale: Invalid params, returning default`);
+        return { scale: 1, offsetX: 0, offsetY: 0 };
+    }
+    
+    console.log(`DEBUG calculateImageToCanvasScale: Params valid, calculating...`);
+
+    // Calculate scale factors to fit image into canvas
+    const scaleX = canvasWidth / imageWidth;
+    const scaleY = canvasHeight / imageHeight;
+
+    console.log(`DEBUG calculateImageToCanvasScale: Scale factors calculated:`, scaleX, scaleY);
+
+    // Use smaller scale to ensure image fits completely within canvas
+    const scale = Math.min(scaleX, scaleY);
+
+    console.log(`DEBUG calculateImageToCanvasScale: Final scale:`, scale);
+
+    // Calculate centered positioning
+    const scaledImageWidth = imageWidth * scale;
+    const scaledImageHeight = imageHeight * scale;
+    
+    const offsetX = (canvasWidth - scaledImageWidth) / 2;
+    const offsetY = (canvasHeight - scaledImageHeight) / 2;
+    
+    console.log(`DEBUG calculateImageToCanvasScale: DETAILED RESULTS:`);
+    console.log(`  Image: ${imageWidth}x${imageHeight}`);
+    console.log(`  Canvas: ${canvasWidth}x${canvasHeight}`);
+    console.log(`  Scale factors: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}`);
+    console.log(`  Final scale: ${scale.toFixed(3)} (using Math.min)`);
+    console.log(`  Scaled image: ${scaledImageWidth.toFixed(1)}x${scaledImageHeight.toFixed(1)}`);
+    console.log(`  Offset: (${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`);
+
+    const result = {
+        scale: scale,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        scaledWidth: scaledImageWidth,
+        scaledHeight: scaledImageHeight
+    };
+
+    console.log(`DEBUG calculateImageToCanvasScale: RETURNING:`, result);
+    return result;
+}
+
 // Function to calculate optimal scaling for new image to fit existing canvas
 function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanvasWidth, existingCanvasHeight) {
     if (!existingCanvasWidth || !existingCanvasHeight) {
@@ -630,8 +743,9 @@ function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanva
     const scaleX = newImageWidth / existingCanvasWidth;
     const scaleY = newImageHeight / existingCanvasHeight;
     
-    // Use the larger scale to ensure canvas fits completely within new image
-    const scale = Math.nax(scaleX, scaleY);
+    // Use the smaller scale to ensure canvas content fits within new image bounds
+    // This is correct for both larger and smaller images
+    const scale = Math.min(scaleX, scaleY);
     
     // Calculate centered positioning
     const scaledCanvasWidth = existingCanvasWidth * scale;
@@ -640,9 +754,14 @@ function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanva
     const offsetX = (newImageWidth - scaledCanvasWidth) / 2;
     const offsetY = (newImageHeight - scaledCanvasHeight) / 2;
     
-    console.log(`Canvas scaling: ${existingCanvasWidth}x${existingCanvasHeight} -> ${scaledCanvasWidth.toFixed(1)}x${scaledCanvasHeight.toFixed(1)} in ${newImageWidth}x${newImageHeight} image`);
-    console.log(`Scale factor: ${scale.toFixed(3)}, Offset: (${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`);
-    
+    console.log(`DEBUG calculateOptimalImageScale:`);
+    console.log(`  Existing canvas: ${existingCanvasWidth}x${existingCanvasHeight}`);
+    console.log(`  New image: ${newImageWidth}x${newImageHeight}`);
+    console.log(`  Scale factors: scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}`);
+    console.log(`  Final scale: ${scale.toFixed(3)} (using Math.min)`);
+    console.log(`  Scaled canvas: ${scaledCanvasWidth.toFixed(1)}x${scaledCanvasHeight.toFixed(1)}`);
+    console.log(`  Offset: (${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`);
+
     return {
         scale: scale,
         offsetX: offsetX,
@@ -770,14 +889,15 @@ function showSegmentationResults(fileId) {
                     // Store the mean color image for canvas with enhanced cache-busting
                     const newMeanColorImage = `/outputs/${filename}?t=${timestamp}&r=${randomId}&s=${sessionId}&canvas=1`;
                     
-                    // Only update mean color image if we're not preserving canvas state
-                    if (!canvasData.preserveCanvasState) {
-                        canvasData.meanColorImage = newMeanColorImage;
-                        console.log('Updated mean color image for canvas:', newMeanColorImage);
-                    } else {
-                        // Store new image for potential future use but don't replace current
+                    // Always update mean color image to the new one, regardless of canvas state preservation
+                    // The canvas state preservation should preserve drawings, not prevent using the new image
+                    canvasData.meanColorImage = newMeanColorImage;
+                    console.log('Updated mean color image for canvas:', newMeanColorImage);
+                    
+                    // Also store as new image for reference
+                    if (canvasData.preserveCanvasState) {
                         canvasData.newMeanColorImage = newMeanColorImage;
-                        console.log('Stored new mean color image for future use:', newMeanColorImage);
+                        console.log('Also stored as new mean color image for reference:', newMeanColorImage);
                     }
                 }
                 
@@ -990,6 +1110,10 @@ function showSegmentationResults(fileId) {
                         console.log('First time loading - creating canvas');
                         createCanvasInAnimationSection(canvasContainerToUse);
                         setTimeout(() => initializeInteractiveCanvas(fileId), 100);
+                    } else if (canvasData.preserveCanvasState) {
+                        // Canvas already has content - DON'T touch it, just update segment info
+                        console.log('New image with existing initialized canvas - preserving canvas state, not touching canvas');
+                        setTimeout(() => initializeInteractiveCanvas(fileId), 100);
                     } else {
                         // Re-segmentation - don't touch canvas at all, just update button handlers
                         console.log('Re-segmentation - canvas already exists, not touching it');
@@ -1138,26 +1262,101 @@ function showSegmentationResults(fileId) {
 }
 
 function initializeInteractiveCanvas(fileId) {
+    console.log('=== CANVAS INITIALIZATION START ===');
+    console.log('DEBUG initializeInteractiveCanvas: preserveCanvasState =', canvasData.preserveCanvasState);
+    console.log('DEBUG initializeInteractiveCanvas: canvasInitialized =', canvasData.canvasInitialized);
+    console.log('DEBUG initializeInteractiveCanvas: meanColorImage =', canvasData.meanColorImage ? 'available' : 'not available');
+    
     const canvas = document.getElementById('drawingCanvas');
     const overlay = document.getElementById('segmentOverlay');
     
-    if (!canvas || !canvasData.meanColorImage) return;
+    if (!canvas || !canvasData.meanColorImage) {
+        console.log('DEBUG: Canvas or meanColorImage not available');
+        return;
+    }
     
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const overlayCtx = overlay.getContext('2d');
     
-    // Load the mean color image
+    // Load the mean color image with cache busting to ensure fresh dimensions
     const img = new Image();
+    
+    // Force reload by adding timestamp to prevent browser caching of image dimensions
+    const imageUrl = canvasData.meanColorImage;
+    const cacheBustingUrl = imageUrl + (imageUrl.includes('?') ? '&' : '?') + 'reload=' + Date.now();
+    
     img.onload = function() {
-        // Set canvas size to match image
-        canvas.width = img.width;
-        canvas.height = img.height;
-        overlay.width = img.width;
-        overlay.height = img.height;
+        console.log('=== IMAGE LOADED ===');
+        console.log('Image src:', img.src);
+        console.log('Image natural dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+        console.log('Image width/height properties:', img.width, 'x', img.height);
+        console.log('meanColorImage URL:', canvasData.meanColorImage);
+        console.log('Cache busting URL used:', cacheBustingUrl);
         
-        // Apply background color and draw the mean color image
-        applyCanvasBackground(ctx, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
+        // Get current canvas format selection
+        const formatSelector = document.getElementById('canvasFormat');
+        const selectedFormat = formatSelector ? formatSelector.value : 'hd';
+        canvasData.canvasFormat = selectedFormat;
+        
+        // Calculate canvas size based on format and image
+        const canvasSize = calculateCanvasSize(img.width, img.height, selectedFormat);
+        console.log('DEBUG: Selected format:', selectedFormat);
+        console.log('DEBUG: Image size used for calculations:', img.width, 'x', img.height);
+        console.log('DEBUG: Canvas size:', canvasSize.width, 'x', canvasSize.height);
+
+        // Check if we need to preserve existing canvas with scaling
+        if (canvasData.preserveCanvasState && canvasData.canvasInitialized) {
+            // Save existing canvas content before resizing
+            const existingWidth = canvas.width;
+            const existingHeight = canvas.height;
+            const existingImageData = ctx.getImageData(0, 0, existingWidth, existingHeight);
+
+            console.log('DEBUG: Preserving canvas state');
+            console.log('DEBUG: Existing canvas size:', existingWidth, 'x', existingHeight);
+
+            // Calculate scaling for preserving existing canvas content
+            // Note: This function calculates how to scale existing canvas content to fit in new canvas
+            // Parameters: (newCanvasWidth, newCanvasHeight, existingCanvasWidth, existingCanvasHeight)
+            console.log('DEBUG: About to call calculateOptimalImageScale with:', canvasSize.width, canvasSize.height, existingWidth, existingHeight);
+            const canvasPreservationScale = calculateOptimalImageScale(canvasSize.width, canvasSize.height, existingWidth, existingHeight);
+            console.log('DEBUG: calculateOptimalImageScale returned:', canvasPreservationScale);
+
+            canvasData.originalCanvasSize = { width: existingWidth, height: existingHeight };
+
+            console.log('DEBUG: Canvas preservation scaling info:', canvasPreservationScale);
+            // Calculate image scaling to fit in canvas (this is what we need for drawing)
+            console.log('DEBUG: About to calculate image scaling with params:', img.width, img.height, canvasSize.width, canvasSize.height);
+
+            const imageScale = calculateImageToCanvasScale(img.width, img.height, canvasSize.width, canvasSize.height);
+
+            // Store the IMAGE scaling for drawing operations (not canvas preservation scaling)
+            canvasData.imageScaling = imageScale;
+        } else {
+            // Set canvas size to calculated size
+            canvas.width = canvasSize.width;
+            canvas.height = canvasSize.height;
+            overlay.width = canvasSize.width;
+            overlay.height = canvasSize.height;
+            
+            // Calculate image scaling to fit in canvas
+            const imageScale = calculateImageToCanvasScale(img.width, img.height, canvasSize.width, canvasSize.height);
+            
+            // Store scaling info for drawing strokes
+            canvasData.imageScaling = imageScale;
+            canvasData.originalCanvasSize = { width: canvasSize.width, height: canvasSize.height };
+
+            console.log('DEBUG: New canvas - imageScale:', imageScale);
+
+            // Apply background color
+            applyCanvasBackground(ctx, canvas.width, canvas.height);
+            
+            // Draw the mean color image with proper scaling and centering
+            ctx.save();
+            ctx.translate(imageScale.offsetX, imageScale.offsetY);
+            ctx.scale(imageScale.scale, imageScale.scale);
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+        }
         
         // Store original image data for segment detection
         canvasData.originalSegments = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -1167,8 +1366,33 @@ function initializeInteractiveCanvas(fileId) {
         
         // Mark canvas as initialized
         canvasData.canvasInitialized = true;
+        
+        console.log(`Canvas initialized for new image: ${img.width}x${img.height}`);
+        console.log('=== CANVAS INITIALIZATION COMPLETE ===');
+
+        // Debug: Check final canvas state
+        setTimeout(() => {
+            console.log('=== POST-INITIALIZATION CANVAS CHECK ===');
+            console.log('Final canvas size:', canvas.width, 'x', canvas.height);
+            console.log('Final imageScaling:', canvasData.imageScaling);
+
+            // Check if image is actually scaled by examining canvas content
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const hasContent = Array.from(imageData.data).some((value, index) => {
+                // Check alpha channel (every 4th value) for non-transparent pixels
+                return index % 4 === 3 && value > 0;
+            });
+            console.log('Canvas has content:', hasContent);
+
+            // Check if content is in top-left corner (unscaled) vs centered (scaled)
+            const topLeftPixel = ctx.getImageData(10, 10, 1, 1);
+            const centerPixel = ctx.getImageData(canvas.width/2, canvas.height/2, 1, 1);
+            console.log('Top-left pixel alpha:', topLeftPixel.data[3]);
+            console.log('Center pixel alpha:', centerPixel.data[3]);
+            console.log('=== END POST-INITIALIZATION CHECK ===');
+        }, 50);
     };
-    img.src = canvasData.meanColorImage;
+    img.src = cacheBustingUrl;
     
     // Initialize buttons and selectors
     document.getElementById('drawAllBtn').addEventListener('click', drawAllSegments);
@@ -1202,7 +1426,16 @@ function initializeInteractiveCanvas(fileId) {
             // Apply new background immediately
             if (canvas.width > 0) {
                 applyCanvasBackground(ctx, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);
+                // Apply proper scaling and translation for the image
+                if (canvasData.imageScaling) {
+                    ctx.save();
+                    ctx.translate(canvasData.imageScaling.offsetX, canvasData.imageScaling.offsetY);
+                    ctx.scale(canvasData.imageScaling.scale, canvasData.imageScaling.scale);
+                    ctx.drawImage(img, 0, 0);
+                    ctx.restore();
+                } else {
+                    ctx.drawImage(img, 0, 0);
+                }
             }
         });
         canvasData.backgroundColor = backgroundSelector.value;
@@ -1646,12 +1879,19 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d');
 
+    // Debug: Log scaling information
+    console.log('applyBrushStrokesFast - imageScaling:', canvasData.imageScaling);
+    console.log('applyBrushStrokesFast - canvas size:', canvas.width, 'x', canvas.height);
+
     // Apply scaling if available
     if (canvasData.imageScaling) {
         const { scale, offsetX, offsetY } = canvasData.imageScaling;
+        console.log('Applying scaling - scale:', scale, 'offsetX:', offsetX, 'offsetY:', offsetY);
         ctx.save();
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
+    } else {
+        console.log('No scaling applied - drawing at original coordinates');
     }
 
     brushStrokes.forEach((stroke) => {
@@ -2033,9 +2273,9 @@ function drawTaperedStrokes(highlightStrokes) {
         console.warn('No highlight strokes to draw');
         return;
     }
-    
+
     console.log(`Drawing ${highlightStrokes.length} tapered strokes`);
-    
+
     highlightStrokes.forEach((stroke, index) => {
         if (!stroke.points || stroke.points.length < 2) {
             console.warn(`Stroke ${index} has insufficient points:`, stroke.points?.length || 0);
@@ -2057,19 +2297,19 @@ function drawTaperedStrokes(highlightStrokes) {
         if (points.length > 0) {
             console.log(`First point thickness: ${points[0].thickness}, Last point thickness: ${points[points.length-1].thickness}`);
         }
-        
+
         for (let i = 0; i < points.length - 1; i++) {
             const currentPoint = points[i];
             const nextPoint = points[i + 1];
             
             // Use the thickness from the current point (already calculated with tapering)
             const thickness = currentPoint.thickness || stroke.width || 2;
-            
+
             // Debug: log thickness for first few points
             if (i < 3) {
                 console.log(`Point ${i}: thickness = ${thickness}`);
             }
-            
+
             ctx.lineWidth = Math.max(1, thickness); // Ensure minimum thickness of 1
             ctx.beginPath();
             ctx.moveTo(currentPoint.x, currentPoint.y);
@@ -2216,13 +2456,13 @@ function drawTaperedStrokes(highlightStrokes) {
     // Reset context
     ctx.globalAlpha = 1.0;
     ctx.globalCompositeOperation = 'source-over';
-    
+
     console.log('Finished drawing tapered strokes');
 }
 
 function drawAllSegments() {
     console.log('🎨 drawAllSegments called');
-    
+
     // First, try using existing segment data if available
     if (canvasData.segmentInfo && canvasData.segmentInfo.segments && canvasData.segmentInfo.segments.length > 0) {
         console.log('✅ Using existing segment data');
@@ -2235,9 +2475,9 @@ function drawAllSegments() {
         showAlert('No file selected', 'danger');
         return;
     }
-    
+
     console.log('🔄 No existing segment data, forcing fresh reload...');
-    
+
     // Find the latest JSON file for current file_id
     fetch(`/segmentation/${currentFileId}`)
     .then(response => {
@@ -2246,7 +2486,7 @@ function drawAllSegments() {
     })
     .then(data => {
         console.log('📊 Segmentation data:', data);
-        
+
         if (data.status !== 'completed') {
             showAlert('Segmentation data not available', 'danger');
             throw new Error('Segmentation not completed');
@@ -2274,12 +2514,12 @@ function drawAllSegments() {
     })
     .then(freshSegmentData => {
         console.log('📊 Fresh segment data loaded:', freshSegmentData);
-        
+
         // FORCE UPDATE: Replace potentially stale data with fresh data
         canvasData.segmentInfo = freshSegmentData;
-        
+
         console.log('✅ Fresh segment data loaded successfully');
-        
+
         proceedWithDrawing();
     })
     .catch(error => {
@@ -2289,7 +2529,7 @@ function drawAllSegments() {
     
     function proceedWithDrawing() {
         console.log('🚀 proceedWithDrawing called');
-        
+
         // Validate segment data
         if (!canvasData.segmentInfo || !canvasData.segmentInfo.segments) {
             showAlert('No segment data available', 'danger');
@@ -2307,7 +2547,7 @@ function drawAllSegments() {
         const minId = Math.min(...segmentIds);
         const maxId = Math.max(...segmentIds);
         console.log(`🎨 Starting to draw ${segments.length} segments, ID range: ${minId}-${maxId}`);
-        
+
         // Validate segment ID consistency
         const uniqueIds = new Set(segmentIds);
         if (uniqueIds.size !== segmentIds.length) {
@@ -2591,7 +2831,7 @@ function drawSmallFragments() {
     
     console.log(`Average pixels per segment: ${averagePixels.toFixed(0)}`);
     console.log(`Large segment threshold (10x average): ${largeThreshold.toFixed(0)}`);
-    
+
     // Filter out large segments (those with more than 10x average pixels)
     const smallSegments = canvasData.segmentInfo.segments.filter(segment => segment.pixel_count <= largeThreshold);
     
@@ -2601,7 +2841,7 @@ function drawSmallFragments() {
     console.log(`Total segments: ${canvasData.segmentInfo.segments.length}`);
     console.log(`Small segments to draw: ${sortedSmallSegments.length}`);
     console.log(`Large segments excluded: ${canvasData.segmentInfo.segments.length - sortedSmallSegments.length}`);
-    
+
     if (sortedSmallSegments.length === 0) {
         showAlert('No small fragments found to draw', 'warning');
         return;
@@ -2634,7 +2874,7 @@ function drawLargeFragments() {
     
     console.log(`Average pixels per segment: ${averagePixels.toFixed(0)}`);
     console.log(`Large segment threshold (10x average): ${largeThreshold.toFixed(0)}`);
-    
+
     // Filter only large segments (those with more than 10x average pixels)
     const largeSegments = canvasData.segmentInfo.segments.filter(segment => segment.pixel_count > largeThreshold);
     
@@ -2644,7 +2884,7 @@ function drawLargeFragments() {
     console.log(`Total segments: ${canvasData.segmentInfo.segments.length}`);
     console.log(`Large segments to draw: ${sortedLargeSegments.length}`);
     console.log(`Small/medium segments excluded: ${canvasData.segmentInfo.segments.length - sortedLargeSegments.length}`);
-    
+
     if (sortedLargeSegments.length === 0) {
         showAlert('No large fragments found to draw', 'warning');
         return;
@@ -2679,7 +2919,7 @@ function drawMediumFragments() {
     console.log(`Average pixels per segment: ${averagePixels.toFixed(0)}`);
     console.log(`Large segment threshold (10x average): ${largeThreshold.toFixed(0)}`);
     console.log(`Small segment threshold (0.5x average): ${smallThreshold.toFixed(0)}`);
-    
+
     // Filter medium segments (between small and large thresholds)
     const mediumSegments = canvasData.segmentInfo.segments.filter(segment => 
         segment.pixel_count > smallThreshold && segment.pixel_count <= largeThreshold
@@ -2695,7 +2935,7 @@ function drawMediumFragments() {
     console.log(`Medium segments to draw: ${sortedMediumSegments.length}`);
     console.log(`Large segments excluded: ${largeCount}`);
     console.log(`Small segments excluded: ${smallCount}`);
-    
+
     if (sortedMediumSegments.length === 0) {
         showAlert('No medium fragments found to draw', 'warning');
         return;
@@ -2840,7 +3080,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             pixel_count: segment.pixel_count,
             average_color: segment.average_color
         });
-        
+
         fetch('/draw_segment', {
             method: 'POST',
             headers: {
@@ -2859,7 +3099,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
         })
         .then(data => {
             console.log(`Backend data for segment ${segment.id}:`, data);
-            
+
             // Check again if drawing was interrupted
             if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
                 stopDrawingTimer();
@@ -2955,7 +3195,16 @@ function clearCanvas() {
         // If transparent, reload the original mean color image
         const img = new Image();
         img.onload = function() {
-            ctx.drawImage(img, 0, 0);
+            // Apply proper scaling and translation for the image
+            if (canvasData.imageScaling) {
+                ctx.save();
+                ctx.translate(canvasData.imageScaling.offsetX, canvasData.imageScaling.offsetY);
+                ctx.scale(canvasData.imageScaling.scale, canvasData.imageScaling.scale);
+                ctx.drawImage(img, 0, 0);
+                ctx.restore();
+            } else {
+                ctx.drawImage(img, 0, 0);
+            }
             showAlert('Canvas cleared to original segmentation', 'info');
         };
         img.onerror = function() {
@@ -3580,7 +3829,16 @@ class VideoRecorder {
             const img = new Image();
             img.onload = () => {
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                ctx.drawImage(img, 0, 0);
+                // Apply proper scaling and translation for the image
+                if (canvasData.imageScaling) {
+                    ctx.save();
+                    ctx.translate(canvasData.imageScaling.offsetX, canvasData.imageScaling.offsetY);
+                    ctx.scale(canvasData.imageScaling.scale, canvasData.imageScaling.scale);
+                    ctx.drawImage(img, 0, 0);
+                    ctx.restore();
+                } else {
+                    ctx.drawImage(img, 0, 0);
+                }
                 resolve();
             };
             img.onerror = () => {
@@ -3957,7 +4215,7 @@ function loadBoundaryResults(fileId) {
     const fragmentation = document.getElementById('boundaryFragmentation').value;
     
 //    console.log(`DEBUG: loadBoundaryResults called for fileId=${fileId}, sensitivity=${sensitivity}, fragmentation=${fragmentation}`);
-    
+
     fetch(`/boundaries/${fileId}?sensitivity=${sensitivity}&fragmentation=${fragmentation}`)
     .then(response => response.json())
     .then(data => {
