@@ -211,33 +211,116 @@ function showImagePreview(src, fileName) {
     document.getElementById('boundariesBtn').disabled = false;
     currentFileId = null;
     
-    // Clean up existing video resources when loading new image
-    canvasData.videoResults.forEach(videoInfo => {
-        if (videoInfo.url.startsWith('blob:')) {
-            URL.revokeObjectURL(videoInfo.url);
-        }
-    });
+    // Check if canvas already exists and has content
+    const existingCanvas = document.getElementById('drawingCanvas');
+    const hasExistingCanvas = existingCanvas && canvasData.canvasInitialized;
     
-    // Reset canvas and video state when new image is loaded
-    canvasData.canvasInitialized = false;
-    canvasData.preserveCanvasState = false;
-    canvasData.cumulativeFrames = [];
-    canvasData.videoResults = [];
-    canvasData.masterVideoRecorder = null;
-    canvasData.appliedEffects = []; // Clear applied effects tracking
+    if (hasExistingCanvas) {
+        // PRESERVE ALL EXISTING DATA when loading new image
+        console.log('Preserving existing canvas and all data when loading new image');
+        
+        // Keep canvas state and all data
+        canvasData.preserveCanvasState = true;
+        
+        // DON'T clean up video resources - keep them
+        // DON'T reset canvas state - preserve everything
+        // DON'T clear frames, videos, or effects - keep all
+        
+        // Show alert about preserving state
+        showAlert('New image loaded - preserving existing canvas and all data', 'info');
+        
+        // Ensure animation section stays visible
+        ensureAnimationSectionVisible();
+        
+    } else {
+        // No existing canvas - normal cleanup for first image
+        console.log('No existing canvas - normal initialization');
+        
+        // Clean up existing video resources when loading first image
+        canvasData.videoResults.forEach(videoInfo => {
+            if (videoInfo.url && videoInfo.url.startsWith('blob:')) {
+                URL.revokeObjectURL(videoInfo.url);
+            }
+        });
+        
+        // Reset state only for first image
+        canvasData.canvasInitialized = false;
+        canvasData.preserveCanvasState = false;
+        canvasData.cumulativeFrames = [];
+        canvasData.videoResults = [];
+        canvasData.masterVideoRecorder = null;
+        canvasData.appliedEffects = [];
+    }
     
-    hideResults();
-    hideSegmentationResults();
+    // Only hide results if no existing canvas to preserve
+    if (!hasExistingCanvas) {
+        hideResults();
+        hideSegmentationResults();
+    }
 }
 
 function clearImage() {
-    document.getElementById('imagePreview').style.display = 'none';
-    document.getElementById('segmentBtn').disabled = true;
-    document.getElementById('boundariesBtn').disabled = true;
-    currentFileId = null;
-    hideResults();
-    hideSegmentationResults();
-    hideBoundaryResults();
+    if (!currentFileId) {
+        // Если нет загруженного файла, просто скрываем превью
+        document.getElementById('imagePreview').style.display = 'none';
+        document.getElementById('segmentBtn').disabled = true;
+        document.getElementById('boundariesBtn').disabled = true;
+        hideResults();
+        hideSegmentationResults();
+        hideBoundaryResults();
+        return;
+    }
+    
+    // Показываем подтверждение удаления
+    if (!confirm('Вы уверены, что хотите удалить загруженное изображение и все связанные с ним результаты?')) {
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    showAlert('Удаление файлов...', 'info');
+    
+    // Вызываем backend для удаления файлов
+    fetch(`/delete/${currentFileId}`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Успешное удаление - очищаем интерфейс
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('segmentBtn').disabled = true;
+            document.getElementById('boundariesBtn').disabled = true;
+            currentFileId = null;
+            
+            // Очищаем все результаты
+            hideResults();
+            hideSegmentationResults();
+            hideBoundaryResults();
+            
+            // Очищаем canvas и видео данные
+            canvasData.canvasInitialized = false;
+            canvasData.preserveCanvasState = false;
+            canvasData.cumulativeFrames = [];
+            canvasData.videoResults = [];
+            canvasData.masterVideoRecorder = null;
+            canvasData.appliedEffects = [];
+            
+            // Освобождаем blob URLs для видео
+            canvasData.videoResults.forEach(videoInfo => {
+                if (videoInfo.url && videoInfo.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(videoInfo.url);
+                }
+            });
+            
+            showAlert(`Успешно удалено ${data.deleted_files.length} файлов`, 'success');
+        } else {
+            showAlert('Ошибка при удалении файлов: ' + (data.error || 'Неизвестная ошибка'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting files:', error);
+        showAlert('Ошибка при удалении файлов. Попробуйте еще раз.', 'danger');
+    });
 }
 
 function uploadFile(file) {
@@ -486,11 +569,12 @@ function hideResults() {
         resultsSection.style.display = 'none';
     }
     
-    // Hide animation section
-    const animationSection = document.getElementById('animationSection');
-    if (animationSection) {
-        animationSection.style.display = 'none';
-    }
+    // DON'T hide animation section when loading new image - it should persist
+    // Animation section should only be hidden when explicitly requested
+    // const animationSection = document.getElementById('animationSection');
+    // if (animationSection) {
+    //     animationSection.style.display = 'none';
+    // }
     
     // Hide segmentation results
     const segmentationResults = document.getElementById('segmentationResults');
@@ -503,6 +587,90 @@ function hideResults() {
     if (boundaryResults) {
         boundaryResults.style.display = 'none';
     }
+}
+
+// New function to hide animation section only when explicitly needed
+function hideAnimationSection() {
+    const animationSection = document.getElementById('animationSection');
+    if (animationSection) {
+        animationSection.style.display = 'none';
+    }
+}
+
+// Function to ensure animation section is visible when needed
+function ensureAnimationSectionVisible() {
+    const animationSection = document.getElementById('animationSection');
+    if (animationSection && canvasData.canvasInitialized) {
+        // Only show animation section if canvas has been initialized
+        animationSection.style.display = 'block';
+        console.log('Animation section restored to visible state');
+    }
+}
+
+// Function to ensure all UI elements are properly visible after segmentation
+function ensureUIElementsVisible() {
+    // Ensure animation section is visible if canvas exists
+    ensureAnimationSectionVisible();
+    
+    // Ensure highlight boundaries button is properly connected
+    const highlightBtn = document.getElementById('highlightBoundariesBtn');
+    if (highlightBtn && !highlightBtn.onclick) {
+        console.log('Reconnecting Highlight Boundaries button event listener');
+        highlightBtn.addEventListener('click', highlightContrastBoundaries);
+    }
+}
+
+// Function to calculate optimal scaling for new image to fit existing canvas
+function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanvasWidth, existingCanvasHeight) {
+    if (!existingCanvasWidth || !existingCanvasHeight) {
+        return { scale: 1, offsetX: 0, offsetY: 0 };
+    }
+    
+    // Calculate scale factors for both dimensions
+    const scaleX = newImageWidth / existingCanvasWidth;
+    const scaleY = newImageHeight / existingCanvasHeight;
+    
+    // Use the larger scale to ensure canvas fits completely within new image
+    const scale = Math.nax(scaleX, scaleY);
+    
+    // Calculate centered positioning
+    const scaledCanvasWidth = existingCanvasWidth * scale;
+    const scaledCanvasHeight = existingCanvasHeight * scale;
+    
+    const offsetX = (newImageWidth - scaledCanvasWidth) / 2;
+    const offsetY = (newImageHeight - scaledCanvasHeight) / 2;
+    
+    console.log(`Canvas scaling: ${existingCanvasWidth}x${existingCanvasHeight} -> ${scaledCanvasWidth.toFixed(1)}x${scaledCanvasHeight.toFixed(1)} in ${newImageWidth}x${newImageHeight} image`);
+    console.log(`Scale factor: ${scale.toFixed(3)}, Offset: (${offsetX.toFixed(1)}, ${offsetY.toFixed(1)})`);
+    
+    return {
+        scale: scale,
+        offsetX: offsetX,
+        offsetY: offsetY,
+        scaledWidth: scaledCanvasWidth,
+        scaledHeight: scaledCanvasHeight
+    };
+}
+
+// Function to preserve canvas content when loading new image with scaling
+function preserveCanvasWithScaling(newImageWidth, newImageHeight) {
+    const canvas = document.getElementById('drawingCanvas');
+    if (!canvas || !canvasData.canvasInitialized) {
+        return false;
+    }
+    
+    const existingWidth = canvas.width;
+    const existingHeight = canvas.height;
+    
+    // Calculate optimal scaling
+    const scaleInfo = calculateOptimalImageScale(newImageWidth, newImageHeight, existingWidth, existingHeight);
+    
+    // Store scaling information for later use
+    canvasData.imageScaling = scaleInfo;
+    canvasData.originalCanvasSize = { width: existingWidth, height: existingHeight };
+    
+    console.log('Preserved canvas with scaling info:', scaleInfo);
+    return true;
 }
 
 function showSegmentationResults(fileId) {
@@ -944,6 +1112,11 @@ function showSegmentationResults(fileId) {
                 showAlert('Segmentation completed successfully!', 'success');
             }
             
+            // Ensure all UI elements are properly visible after segmentation
+            setTimeout(() => {
+                ensureUIElementsVisible();
+            }, 200);
+            
             // Force a final DOM refresh
             setTimeout(() => {
                 console.log('Final DOM check - images container children:', imagesContainer?.children.length);
@@ -1147,6 +1320,11 @@ function updateSegmentInfoOnly(fileId) {
     
     console.log('Segment info updated - canvas was not touched');
     showAlert('Segmentation updated while preserving your drawing!', 'success');
+    
+    // Ensure all UI elements remain visible after re-segmentation
+    setTimeout(() => {
+        ensureUIElementsVisible();
+    }, 300);
 }
 
 function applyCanvasBackground(ctx, width, height) {
@@ -1463,10 +1641,19 @@ function drawSelectedSegment() {
     });
 }
 
+
 function applyBrushStrokesFast(brushStrokes, segmentId) {
     const canvas = document.getElementById('drawingCanvas');
     const ctx = canvas.getContext('2d');
-    
+
+    // Apply scaling if available
+    if (canvasData.imageScaling) {
+        const { scale, offsetX, offsetY } = canvasData.imageScaling;
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+    }
+
     brushStrokes.forEach((stroke) => {
         // Get brush type configuration
         const brushType = stroke.type || canvasData.currentBrushType;
@@ -1489,6 +1676,10 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.shadowBlur = 0;
     });
+
+    if (canvasData.imageScaling) {
+        ctx.restore()
+    }
 }
 
 function drawPencilStroke(ctx, stroke) {
@@ -2667,7 +2858,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             return response.json();
         })
         .then(data => {
-            console.log(`📊 Backend data for segment ${segment.id}:`, data);
+            console.log(`Backend data for segment ${segment.id}:`, data);
             
             // Check again if drawing was interrupted
             if (canvasData.drawingInterrupted || !canvasData.isDrawingAll) {
@@ -2679,8 +2870,8 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
             }
             
             if (data.success) {
-                console.log(`✅ Successfully got brush strokes for segment ${segment.id}:`, data.brush_strokes?.length || 0, 'strokes');
-                
+                console.log(`Successfully got brush strokes for segment ${segment.id}:`, data.brush_strokes?.length || 0, 'strokes');
+
                 // Apply brush strokes with enhanced visualization
                 applyBrushStrokesFast(data.brush_strokes, segment.id);
                 

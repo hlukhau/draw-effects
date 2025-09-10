@@ -54,7 +54,16 @@ def upload_file():
         # Generate unique filename
         file_id = str(uuid.uuid4())
         filename = secure_filename(file.filename)
-        file_extension = filename.rsplit('.', 1)[1].lower()
+
+        print(filename)
+        
+        # Safely extract file extension with proper error handling
+        if '.' in filename:
+            file_extension = filename.rsplit('.', 1)[1].lower()
+        else:
+            # Default to jpg if no extension found
+            file_extension = 'jpg'
+            
         unique_filename = f"{file_id}.{file_extension}"
         
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
@@ -508,6 +517,49 @@ def flash_animation():
         
     except Exception as e:
         print(f"Error in flash_animation: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/delete/<file_id>', methods=['DELETE'])
+def delete_file(file_id):
+    """
+    Удаляет загруженный файл и все связанные с ним результаты
+    """
+    try:
+        deleted_files = []
+        
+        # Удаляем исходный загруженный файл
+        for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+            if filename.startswith(file_id):
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(f"uploads/{filename}")
+        
+        # Удаляем все файлы результатов
+        for filename in os.listdir(app.config['OUTPUT_FOLDER']):
+            if filename.startswith(file_id):
+                file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(f"outputs/{filename}")
+        
+        # Очищаем статус обработки
+        keys_to_remove = []
+        for key in processing_status.keys():
+            if key.startswith(file_id):
+                keys_to_remove.append(key)
+        
+        for key in keys_to_remove:
+            del processing_status[key]
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {len(deleted_files)} files',
+            'deleted_files': deleted_files
+        })
+        
+    except Exception as e:
+        print(f"Error in delete_file: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/save_canvas_frame', methods=['POST'])

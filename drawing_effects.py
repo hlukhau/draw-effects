@@ -1015,13 +1015,13 @@ class DrawingEffectGenerator:
         # print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
         
         if np.sum(mask) == 0:
-            print(f"❌ ERROR: No pixels found for segment {segment_id} with color {target_color}")
+            print(f"[ERROR] No pixels found for segment {segment_id} with color {target_color}")
             return []
         
         # Analyze segment geometry and generate brush strokes with brush type
         brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
         
-        print(f"✅ Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
+        print(f"[SUCCESS] Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     
@@ -1126,7 +1126,7 @@ class DrawingEffectGenerator:
         # print(f"🎨 DEBUG: Found {len(regions)} regions in mask")
         
         if not regions:
-            print(f"❌ ERROR: No regions found in segment mask!")
+            print(f"[ERROR] No regions found in segment mask!")
             return []
         
         props = regions[0]
