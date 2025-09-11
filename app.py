@@ -256,6 +256,40 @@ def draw_segment():
         print(f"Error in draw_segment: {str(e)}")  # Add logging
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/draw_individual_segment', methods=['POST'])
+def draw_individual_segment():
+    """Draw individual segment without color merging - each segment is processed separately"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        segment_id = data.get('segment_id')
+        brush_type = data.get('brush_type', 'pencil')  # Default to pencil brush
+        stroke_density = data.get('stroke_density', 1.0)  # Default density
+        
+        if not file_id or segment_id is None:
+            return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
+        
+        # Generate brush strokes for the individual segment (without color merging)
+        generator = DrawingEffectGenerator()
+        brush_strokes = generator.generate_individual_segment_strokes(
+            output_dir=app.config['OUTPUT_FOLDER'],
+            file_id=file_id,
+            segment_id=segment_id,
+            brush_type=brush_type,
+            stroke_density=stroke_density
+        )
+        
+        return jsonify({
+            'success': True,
+            'brush_strokes': brush_strokes,
+            'brush_type': brush_type,
+            'mode': 'individual'  # Indicate this is individual segment mode
+        })
+        
+    except Exception as e:
+        print(f"Error in draw_individual_segment: {str(e)}")  # Add logging
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/detect_boundaries', methods=['POST'])
 def detect_boundaries():
     """Detect contrast boundaries in an uploaded image"""

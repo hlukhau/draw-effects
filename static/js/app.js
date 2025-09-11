@@ -1012,6 +1012,9 @@ function showSegmentationResults(fileId) {
                                     <button id="drawSmallBtn" class="btn btn-info btn-sm mr-2">
                                         <i class="fas fa-brush"></i> Small Fragments
                                     </button>
+                                    <button id="drawIndividualBtn" class="btn btn-secondary btn-sm mr-2" onclick="drawIndividualSegments()">
+                                        <i class="fas fa-th"></i> Individual Segments
+                                    </button>
                                     <button id="highlightBoundariesBtn" class="btn btn-outline-primary btn-sm mr-2">
                                         <i class="fas fa-highlighter"></i> Highlight Boundaries
                                     </button>
@@ -1405,7 +1408,14 @@ function initializeInteractiveCanvas(fileId) {
     document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
     document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
     
-    
+    // Event listener for Individual Segments button
+    document.addEventListener('DOMContentLoaded', function() {
+        const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        if (drawIndividualBtn) {
+            drawIndividualBtn.addEventListener('click', drawIndividualSegments);
+        }
+    });
+
     // Initialize brush type selector
     const brushSelector = document.getElementById('brushTypeSelect');
     if (brushSelector) {
@@ -3201,6 +3211,106 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     
     // Start drawing
     drawNextSegment();
+}
+
+function drawIndividualSegments() {
+    console.log('🎨 drawIndividualSegments called');
+    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+    
+    // First, try using existing segment data if available
+    if (canvasData.segmentInfo && canvasData.segmentInfo.segments && canvasData.segmentInfo.segments.length > 0) {
+        console.log('✅ Using existing segment data for individual drawing');
+        const segments = canvasData.segmentInfo.segments;
+        
+        drawIndividualBtn.disabled = true;
+        drawIndividualBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drawing Individual...';
+
+        // Sort segments by pixel count (largest first) for better visual progression
+        const sortedSegments = segments.sort((a, b) => b.pixel_count - a.pixel_count);
+        
+        // Draw each segment individually without color merging
+        drawSegmentsSequentially(sortedSegments, 0, 'individual');
+        return;
+    }
+    
+    // If no existing data, show error message
+    if (!currentFileId) {
+        showAlert('No file selected', 'danger');
+        return;
+    }
+    
+    // If no segments available, suggest running segmentation first
+    showMessage('No segments available. Please run segmentation first.', 'warning');
+}
+
+function drawSegmentsSequentially(segments, index, mode = 'normal') {
+    // Check if we've finished all segments
+    if (index >= segments.length) {
+        // Reset button state
+        const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        if (drawIndividualBtn) {
+            drawIndividualBtn.disabled = false;
+            drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
+        }
+        
+        showMessage(`Completed drawing ${segments.length} individual segments!`, 'success');
+        return;
+    }
+
+    const segment = segments[index];
+    const segmentId = segment.id;
+    
+    // Determine which endpoint to use based on mode
+    const endpoint = mode === 'individual' ? '/draw_individual_segment' : '/draw_segment';
+    
+    console.log(`Drawing segment ${segmentId} (${index + 1}/${segments.length}) using ${mode} mode`);
+    
+    // Send request to backend to generate brush strokes for this segment
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId,
+            segment_id: segmentId,
+            brush_type: canvasData.currentBrushType || 'pencil',
+            stroke_density: parseFloat(document.getElementById('strokeDensity')?.value || 1.0)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Apply brush strokes to canvas
+            applyBrushStrokesFast(data.brush_strokes, segmentId);
+            
+            // Update progress
+            const progress = Math.round(((index + 1) / segments.length) * 100);
+            const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+            if (drawIndividualBtn) {
+                drawIndividualBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Drawing ${index + 1}/${segments.length} (${progress}%)`;
+            }
+            
+            // Continue with next segment after a short delay
+            setTimeout(() => {
+                drawSegmentsSequentially(segments, index + 1, mode);
+            }, 100); // Small delay to allow UI updates
+            
+        } else {
+            console.error(`Error drawing segment ${segmentId}:`, data.error);
+            // Continue with next segment even if this one failed
+            setTimeout(() => {
+                drawSegmentsSequentially(segments, index + 1, mode);
+            }, 100);
+        }
+    })
+    .catch(error => {
+        console.error(`Error drawing segment ${segmentId}:`, error);
+        // Continue with next segment even if this one failed
+        setTimeout(() => {
+            drawSegmentsSequentially(segments, index + 1, mode);
+        }, 100);
+    });
 }
 
 function calculateSegmentDelay(pixelCount) {

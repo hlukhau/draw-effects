@@ -72,10 +72,42 @@ class DrawingEffectGenerator:
             progress_callback(100, "Video generation completed!")
     
     def _load_and_preprocess_image(self, input_path):
-        """Load and preprocess the input image"""
-        # Load image
-        img = cv2.imread(input_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        """Load and preprocess the input image with fallback methods"""
+        img = None
+        
+        # Method 1: Try OpenCV first
+        try:
+            img = cv2.imread(input_path)
+            if img is not None and len(img.shape) >= 2 and img.shape[0] > 0 and img.shape[1] > 0:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                print(f"[SUCCESS] Loaded image with OpenCV: {img.shape}")
+            else:
+                img = None
+        except Exception as e:
+            print(f"[WARNING] OpenCV failed to load image: {e}")
+            img = None
+        
+        # Method 2: Fallback to PIL if OpenCV fails
+        if img is None:
+            try:
+                from PIL import Image
+                pil_image = Image.open(input_path)
+                
+                # Convert to RGB if necessary
+                if pil_image.mode != 'RGB':
+                    pil_image = pil_image.convert('RGB')
+                
+                # Convert PIL image to numpy array
+                img = np.array(pil_image)
+                print(f"[SUCCESS] Loaded image with PIL: {img.shape}")
+                
+            except Exception as e:
+                print(f"[ERROR] PIL also failed to load image: {e}")
+                raise ValueError(f"Failed to load image: {input_path}. Both OpenCV and PIL failed. File may be corrupted or in unsupported format.")
+        
+        # Final validation
+        if img is None or len(img.shape) < 2 or img.shape[0] == 0 or img.shape[1] == 0:
+            raise ValueError(f"Invalid image dimensions after loading: {img.shape if img is not None else 'None'}")
         
         # Resize if too large (max 800px on longest side)
         h, w = img.shape[:2]
@@ -86,6 +118,37 @@ class DrawingEffectGenerator:
             img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
         
         return img
+    
+    def _load_image_robust(self, input_path):
+        """Robust image loading with OpenCV and PIL fallback"""
+        img = None
+        
+        # Method 1: Try OpenCV first
+        try:
+            img = cv2.imread(input_path)
+            if img is not None and len(img.shape) >= 2 and img.shape[0] > 0 and img.shape[1] > 0:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                return img
+        except Exception as e:
+            print(f"[WARNING] OpenCV failed to load {input_path}: {e}")
+        
+        # Method 2: Fallback to PIL if OpenCV fails
+        try:
+            from PIL import Image
+            pil_image = Image.open(input_path)
+            
+            # Convert to RGB if necessary
+            if pil_image.mode != 'RGB':
+                pil_image = pil_image.convert('RGB')
+            
+            # Convert PIL image to numpy array
+            img = np.array(pil_image)
+            print(f"[SUCCESS] Loaded {input_path} with PIL: {img.shape}")
+            return img
+            
+        except Exception as e:
+            print(f"[ERROR] PIL also failed to load {input_path}: {e}")
+            raise ValueError(f"Failed to load image: {input_path}. Both OpenCV and PIL failed.")
     
     def _segment_by_detail_levels(self, image, detail_level, color_threshold):
         """
@@ -1024,6 +1087,338 @@ class DrawingEffectGenerator:
         print(f"[SUCCESS] Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
+    
+    def generate_individual_segment_strokes(self, output_dir, file_id, segment_id, brush_type='pencil', stroke_density=1.0):
+        """
+        Generate brush strokes for a specific individual segment without color merging
+        Each segment is processed separately based on its exact boundaries from segmentation
+        
+        Args:
+            output_dir: Directory containing segment data
+            file_id: File identifier
+            segment_id: ID of the segment to draw
+            brush_type: Type of brush ('pencil' or 'brush')
+            stroke_density: Density multiplier for stroke count (0.5-2.0)
+            
+        Returns:
+            List of brush stroke data for frontend rendering
+        """
+        import json
+        import math
+        from scipy import ndimage
+        from skimage import measure
+        
+        # Load segment information - look in the outputs directory
+        outputs_dir = os.path.join(os.path.dirname(output_dir), 'outputs')
+        if not os.path.exists(outputs_dir):
+            outputs_dir = output_dir  # fallback to original directory
+        
+        print(f"[INDIVIDUAL] Looking for segment files in: {outputs_dir}")
+        
+        # Load JSON segment data
+        json_files = [f for f in os.listdir(outputs_dir) 
+                     if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                     and 'boundaries' not in f]  # Exclude boundary files
+        if not json_files:
+            json_files = [f for f in os.listdir(outputs_dir) 
+                         if file_id in f and f.endswith('.json') 
+                         and 'boundaries' not in f]
+            
+        if not json_files:
+            raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
+        
+        # Always select the NEWEST JSON file by modification time
+        json_files_with_time = []
+        for json_file in json_files:
+            file_path = os.path.join(outputs_dir, json_file)
+            mod_time = os.path.getmtime(file_path)
+            json_files_with_time.append((json_file, mod_time))
+        
+        json_files_with_time.sort(key=lambda x: x[1], reverse=True)
+        newest_json_file = json_files_with_time[0][0]
+        
+        json_path = os.path.join(outputs_dir, newest_json_file)
+        print(f"[INDIVIDUAL] Loading segment data from: {json_path}")
+        
+        with open(json_path, 'r') as f:
+            segment_data = json.load(f)
+        
+        # Handle different possible data structures
+        segments_list = None
+        if isinstance(segment_data, dict):
+            if 'segments' in segment_data:
+                segments_list = segment_data['segments']
+            elif 'segment_data' in segment_data:
+                segments_list = segment_data['segment_data']
+            else:
+                for key in segment_data.keys():
+                    if isinstance(segment_data[key], list):
+                        segments_list = segment_data[key]
+                        break
+        elif isinstance(segment_data, list):
+            segments_list = segment_data
+            
+        if segments_list is None:
+            raise Exception(f"Could not find segments data in JSON structure. Available keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Data is not a dict'}")
+        
+        # Find the target segment
+        target_segment = None
+        for segment in segments_list:
+            if segment['id'] == segment_id:
+                target_segment = segment
+                break
+        
+        if not target_segment:
+            # Try alternative matching strategies
+            if isinstance(segment_id, str) and segment_id.isdigit():
+                segment_id_int = int(segment_id)
+                for segment in segments_list:
+                    if segment['id'] == segment_id_int:
+                        target_segment = segment
+                        break
+            
+            if not target_segment and isinstance(segment_id, str):
+                for segment in segments_list:
+                    if str(segment['id']) == segment_id:
+                        target_segment = segment
+                        break
+        
+        if not target_segment:
+            available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
+            raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
+        
+        # Load the original image to recreate exact segmentation
+        original_files = [f for f in os.listdir(outputs_dir) 
+                         if f.startswith(f"{file_id}_") and 'original' in f and f.endswith('.png')]
+        if not original_files:
+            raise Exception(f"Original image not found for file_id: {file_id}")
+        
+        original_path = os.path.join(outputs_dir, original_files[0])
+        # Use the same robust loading method as _load_and_preprocess_image
+        original_image = self._load_image_robust(original_path)
+        
+        # Recreate segmentation to get exact segment boundaries
+        threshold = segment_data.get('threshold', 30)
+        segments_mask = self._segment_by_color_similarity(original_image, threshold)
+        
+        # Create mask for the specific segment ID - this preserves individual segment boundaries
+        mask = (segments_mask == segment_id)
+        
+        print(f"[INDIVIDUAL] Found {np.sum(mask)} pixels for individual segment {segment_id}")
+        
+        if np.sum(mask) == 0:
+            print(f"[INDIVIDUAL ERROR] No pixels found for segment {segment_id}")
+            return []
+        
+        # Generate brush strokes for this individual segment
+        brush_strokes = self._analyze_individual_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
+        
+        print(f"[INDIVIDUAL SUCCESS] Generated {len(brush_strokes)} {brush_type} strokes for individual segment {segment_id}")
+        
+        return brush_strokes
+    
+    def _analyze_individual_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density):
+        """
+        Analyze individual segment geometry and create appropriate brush strokes
+        This method treats each segment as a separate entity regardless of color similarity
+        
+        Args:
+            mask: Boolean mask of the individual segment
+            segment_info: Segment information including color
+            brush_type: Type of brush ('pencil' or 'brush')
+            stroke_density: Density multiplier for stroke count (0.5-2.0)
+            
+        Returns:
+            List of brush stroke data
+        """
+        from scipy import ndimage
+        from skimage import measure, morphology
+        import math
+        
+        # Get segment properties using connected components to handle separate regions
+        labeled_mask = measure.label(mask)
+        regions = measure.regionprops(labeled_mask)
+        
+        if not regions:
+            return []
+        
+        all_strokes = []
+        
+        # Process each connected component separately
+        for region in regions:
+            if region.area < 10:  # Skip very small regions
+                continue
+            
+            # Create mask for this specific region
+            region_mask = (labeled_mask == region.label)
+            
+            # Extract geometric properties
+            centroid = region.centroid
+            bbox = region.bbox  # (min_row, min_col, max_row, max_col)
+            area = region.area
+            
+            # Calculate dimensions
+            height = bbox[2] - bbox[0]
+            width = bbox[3] - bbox[1]
+            aspect_ratio = width / height if height > 0 else 1
+            
+            # Calculate appropriate brush width based on area
+            base_stroke_width = max(6, int(math.sqrt(area) / 8))
+            
+            # Generate strokes based on brush type and region properties
+            if brush_type == 'pencil' or brush_type == 'brush':
+                region_strokes = self._generate_individual_pencil_strokes(
+                    region_mask, segment_info['average_color'], base_stroke_width, stroke_density, brush_type, region
+                )
+                all_strokes.extend(region_strokes)
+            else:
+                # Fallback to basic stroke generation
+                region_strokes = self._generate_basic_individual_strokes(
+                    region_mask, segment_info['average_color'], base_stroke_width, brush_type, region
+                )
+                all_strokes.extend(region_strokes)
+        
+        return all_strokes
+    
+    def _generate_individual_pencil_strokes(self, region_mask, avg_color, base_stroke_width, stroke_density, brush_type, region_props):
+        """Generate pencil strokes for individual region without color merging"""
+        strokes = []
+        
+        # Get region properties
+        centroid = region_props.centroid
+        orientation = region_props.orientation
+        bbox = region_props.bbox
+        area = region_props.area
+        
+        # Calculate stroke parameters based on individual region size
+        segment_height = bbox[2] - bbox[0]
+        segment_width = bbox[3] - bbox[1]
+        
+        # Determine stroke count based on area and density
+        if area < 25:
+            base_strokes = max(8, int(area / 2))
+            base_spacing = max(1, int(base_stroke_width * 0.4))
+        elif area < 100:
+            base_strokes = max(15, int(area / 5))
+            base_spacing = max(1, int(base_stroke_width * 0.6))
+        else:
+            base_strokes = max(25, int(area / 8))
+            base_spacing = max(1, int(base_stroke_width * 0.8))
+        
+        # Apply density multiplier
+        num_strokes = int(base_strokes * stroke_density)
+        stroke_spacing = max(1, int(base_spacing / stroke_density))
+        
+        # Limit maximum strokes based on area
+        if area < 500:
+            max_strokes = 150
+        elif area < 2000:
+            max_strokes = 400
+        else:
+            max_strokes = 800
+        
+        num_strokes = min(num_strokes, max_strokes)
+        
+        # Make color slightly darker for pencil effect
+        pencil_color = [
+            max(0, int(float(avg_color['r']) * 0.85)),
+            max(0, int(float(avg_color['g']) * 0.85)),
+            max(0, int(float(avg_color['b']) * 0.85))
+        ]
+        
+        # Calculate stroke width based on brush type
+        if brush_type == 'brush':
+            stroke_width = base_stroke_width
+        else:  # pencil
+            stroke_width = max(1, int(base_stroke_width * 0.7))
+        
+        # Generate primary strokes along the major axis
+        for i in range(num_strokes):
+            # Add angle variation
+            angle_variation = (np.random.random() - 0.5) * 15 * np.pi / 180
+            stroke_angle = orientation + angle_variation
+            
+            dx = np.cos(stroke_angle)
+            dy = np.sin(stroke_angle)
+            
+            # Find starting point within the region
+            attempts = 0
+            start_point = None
+            
+            while attempts < 8 and start_point is None:
+                if segment_width > segment_height:
+                    start_y = bbox[0] + np.random.random() * segment_height
+                    start_x = bbox[1] + (i / num_strokes) * segment_width + np.random.random() * stroke_spacing - stroke_spacing/2
+                else:
+                    start_x = bbox[1] + np.random.random() * segment_width
+                    start_y = bbox[0] + (i / num_strokes) * segment_height + np.random.random() * stroke_spacing - stroke_spacing/2
+                
+                start_x = max(bbox[1], min(bbox[3]-1, start_x))
+                start_y = max(bbox[0], min(bbox[2]-1, start_y))
+                
+                if (0 <= int(start_y) < region_mask.shape[0] and 
+                    0 <= int(start_x) < region_mask.shape[1] and
+                    region_mask[int(start_y), int(start_x)]):
+                    start_point = (start_x, start_y)
+                
+                attempts += 1
+            
+            if start_point is None:
+                continue
+            
+            # Generate stroke points
+            num_points = np.random.randint(2, 5)
+            stroke_points = []
+            
+            current_x, current_y = start_point
+            max_stroke_length = min(segment_width, segment_height) * 0.7
+            step_size = max_stroke_length / (num_points - 1) if num_points > 1 else 0
+            
+            for point_idx in range(num_points):
+                if (0 <= int(current_y) < region_mask.shape[0] and 
+                    0 <= int(current_x) < region_mask.shape[1] and
+                    region_mask[int(current_y), int(current_x)]):
+                    stroke_points.append({'x': current_x, 'y': current_y})
+                
+                if point_idx < num_points - 1:
+                    current_x += dx * step_size
+                    current_y += dy * step_size
+                    
+                    if (current_x < bbox[1] or current_x >= bbox[3] or
+                        current_y < bbox[0] or current_y >= bbox[2]):
+                        break
+                        
+                    if (int(current_y) >= region_mask.shape[0] or 
+                        int(current_x) >= region_mask.shape[1] or
+                        not region_mask[int(current_y), int(current_x)]):
+                        break
+            
+            if len(stroke_points) >= 2:
+                strokes.append({
+                    'color': f'rgb({pencil_color[0]}, {pencil_color[1]}, {pencil_color[2]})',
+                    'width': stroke_width,
+                    'points': stroke_points,
+                    'type': brush_type
+                })
+        
+        return strokes
+    
+    def _generate_basic_individual_strokes(self, region_mask, avg_color, base_stroke_width, brush_type, region_props):
+        """Generate basic strokes for individual region"""
+        strokes = []
+        
+        centroid = region_props.centroid
+        color = f"#{avg_color['r']:02x}{avg_color['g']:02x}{avg_color['b']:02x}"
+        
+        # Simple dot or short stroke for small regions
+        strokes.append({
+            'color': color,
+            'width': base_stroke_width,
+            'points': [{'x': int(centroid[1]), 'y': int(centroid[0])}],
+            'type': brush_type
+        })
+        
+        return strokes
     
     def _analyze_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density):
         """
@@ -1972,8 +2367,7 @@ class DrawingEffectGenerator:
             print(f"Using mean color image for boundary detection: {mean_color_path}")
             
             # Load mean color image to ensure same coordinate system as strokes
-            image = cv2.imread(mean_color_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = self._load_image_robust(mean_color_path)
             print(f"🔍 DEBUG: Boundary detection using mean color image size: {image.shape[:2]} (H x W)")
         
         if progress_callback:
