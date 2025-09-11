@@ -3215,18 +3215,60 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
 
 function drawIndividualSegments() {
     console.log('🎨 drawIndividualSegments called');
-    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
     
     // First, try using existing segment data if available
     if (canvasData.segmentInfo && canvasData.segmentInfo.segments && canvasData.segmentInfo.segments.length > 0) {
         console.log('✅ Using existing segment data for individual drawing');
         const segments = canvasData.segmentInfo.segments;
         
-        drawIndividualBtn.disabled = true;
-        drawIndividualBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drawing Individual...';
-
+        // Show drawing progress and manage buttons (same as other drawing functions)
+        const progressDiv = document.getElementById('drawingProgress');
+        const drawAllBtn = document.getElementById('drawAllBtn');
+        const drawLargeBtn = document.getElementById('drawLargeBtn');
+        const drawMediumBtn = document.getElementById('drawMediumBtn');
+        const drawSmallBtn = document.getElementById('drawSmallBtn');
+        const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        const stopBtn = document.getElementById('stopDrawingBtn');
+        
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (drawAllBtn) {
+            drawAllBtn.disabled = true;
+            drawAllBtn.style.display = 'none';
+        }
+        if (drawLargeBtn) {
+            drawLargeBtn.disabled = true;
+            drawLargeBtn.style.display = 'none';
+        }
+        if (drawMediumBtn) {
+            drawMediumBtn.disabled = true;
+            drawMediumBtn.style.display = 'none';
+        }
+        if (drawSmallBtn) {
+            drawSmallBtn.disabled = true;
+            drawSmallBtn.style.display = 'none';
+        }
+        if (drawIndividualBtn) {
+            drawIndividualBtn.disabled = true;
+            drawIndividualBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drawing Individual...';
+            drawIndividualBtn.style.display = 'none';
+        }
+        if (stopBtn) stopBtn.style.display = 'inline-block';
+        
+        // Initialize drawing state
+        canvasData.isDrawingAll = true;
+        canvasData.drawingInterrupted = false;
+        
         // Sort segments by pixel count (largest first) for better visual progression
         const sortedSegments = segments.sort((a, b) => b.pixel_count - a.pixel_count);
+        
+        // Update progress info
+        const currentSegmentSpan = document.getElementById('currentDrawingSegment');
+        const brushTypeSpan = document.getElementById('currentBrushType');
+        if (currentSegmentSpan) currentSegmentSpan.textContent = 'Individual Segments';
+        if (brushTypeSpan) brushTypeSpan.textContent = canvasData.currentBrushType || 'Pencil';
+        
+        // Start drawing timer
+        startDrawingTimer();
         
         // Draw each segment individually without color merging
         drawSegmentsSequentially(sortedSegments, 0, 'individual');
@@ -3244,14 +3286,59 @@ function drawIndividualSegments() {
 }
 
 function drawSegmentsSequentially(segments, index, mode = 'normal') {
+    // Check if drawing was interrupted
+    if (canvasData.drawingInterrupted) {
+        console.log('Drawing interrupted, stopping sequential drawing');
+        return;
+    }
+    
     // Check if we've finished all segments
     if (index >= segments.length) {
-        // Reset button state
+        // Complete drawing - restore UI state (same as other drawing functions)
+        const progressDiv = document.getElementById('drawingProgress');
+        const drawAllBtn = document.getElementById('drawAllBtn');
+        const drawLargeBtn = document.getElementById('drawLargeBtn');
+        const drawMediumBtn = document.getElementById('drawMediumBtn');
+        const drawSmallBtn = document.getElementById('drawSmallBtn');
         const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        const stopBtn = document.getElementById('stopDrawingBtn');
+        
+        if (progressDiv) progressDiv.style.display = 'none';
+        if (drawAllBtn) {
+            drawAllBtn.disabled = false;
+            drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
+            drawAllBtn.style.display = 'inline-block';
+        }
+        if (drawLargeBtn) {
+            drawLargeBtn.disabled = false;
+            drawLargeBtn.style.display = 'inline-block';
+        }
+        if (drawMediumBtn) {
+            drawMediumBtn.disabled = false;
+            drawMediumBtn.style.display = 'inline-block';
+        }
+        if (drawSmallBtn) {
+            drawSmallBtn.disabled = false;
+            drawSmallBtn.style.display = 'inline-block';
+        }
         if (drawIndividualBtn) {
             drawIndividualBtn.disabled = false;
             drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
+            drawIndividualBtn.style.display = 'inline-block';
         }
+        if (stopBtn) stopBtn.style.display = 'none';
+        
+        // Reset drawing state
+        canvasData.isDrawingAll = false;
+        canvasData.drawingInterrupted = false;
+        
+        // Stop drawing timer
+        stopDrawingTimer();
+        
+        // Reset progress bars
+        setTimeout(() => {
+            resetProgressBars();
+        }, 1000);
         
         showMessage(`Completed drawing ${segments.length} individual segments!`, 'success');
         return;
@@ -3259,6 +3346,15 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
 
     const segment = segments[index];
     const segmentId = segment.id;
+    
+    // Update progress using the common progress system
+    updateDrawingProgress(index + 1, segments.length);
+    
+    // Update current segment info
+    const currentSegmentSpan = document.getElementById('currentDrawingSegment');
+    if (currentSegmentSpan) {
+        currentSegmentSpan.textContent = `Individual Segment ${segmentId} (${index + 1}/${segments.length})`;
+    }
     
     // Determine which endpoint to use based on mode
     const endpoint = mode === 'individual' ? '/draw_individual_segment' : '/draw_segment';
@@ -3280,28 +3376,27 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
     })
     .then(response => response.json())
     .then(data => {
+        // Check again if drawing was interrupted during the request
+        if (canvasData.drawingInterrupted) {
+            console.log('Drawing interrupted during request, stopping');
+            return;
+        }
+        
         if (data.success) {
             // Apply brush strokes to canvas
             applyBrushStrokesFast(data.brush_strokes, segmentId);
             
-            // Update progress
-            const progress = Math.round(((index + 1) / segments.length) * 100);
-            const drawIndividualBtn = document.getElementById('drawIndividualBtn');
-            if (drawIndividualBtn) {
-                drawIndividualBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Drawing ${index + 1}/${segments.length} (${progress}%)`;
-            }
-            
-            // Continue with next segment after a short delay
+            // Continue with next segment after a short delay (reduced from 100ms to 50ms for speed)
             setTimeout(() => {
                 drawSegmentsSequentially(segments, index + 1, mode);
-            }, 100); // Small delay to allow UI updates
+            }, 50);
             
         } else {
             console.error(`Error drawing segment ${segmentId}:`, data.error);
             // Continue with next segment even if this one failed
             setTimeout(() => {
                 drawSegmentsSequentially(segments, index + 1, mode);
-            }, 100);
+            }, 50);
         }
     })
     .catch(error => {
@@ -3309,7 +3404,7 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
         // Continue with next segment even if this one failed
         setTimeout(() => {
             drawSegmentsSequentially(segments, index + 1, mode);
-        }, 100);
+        }, 50);
     });
 }
 
