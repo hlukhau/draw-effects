@@ -1,5 +1,7 @@
 import os
 import uuid
+import shutil
+import glob
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 
@@ -28,12 +30,39 @@ individual_segments_cache = {}
 # Global cache for individual segment masks to avoid repeated segmentation
 individual_segment_masks_cache = {}
 
+def cleanup_folders():
+    """Clean up uploads and outputs folders on application startup"""
+    try:
+        # Clean uploads folder
+        if os.path.exists(app.config['UPLOAD_FOLDER']):
+            for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Removed upload file: {filename}")
+        
+        # Clean outputs folder
+        if os.path.exists(app.config['OUTPUT_FOLDER']):
+            for filename in os.listdir(app.config['OUTPUT_FOLDER']):
+                file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"Removed output file: {filename}")
+        
+        print("Startup cleanup completed successfully")
+        
+    except Exception as e:
+        print(f"Error during startup cleanup: {str(e)}")
+
 # Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 os.makedirs('static/css', exist_ok=True)
 os.makedirs('static/js', exist_ok=True)
 os.makedirs('templates', exist_ok=True)
+
+# Clean up folders on startup
+cleanup_folders()
 
 # Store processing status
 processing_status = {}
@@ -42,6 +71,64 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def cleanup_old_files(exclude_file_id=None):
+    """Clean up old files from uploads and outputs folders, optionally excluding a specific file_id"""
+    try:
+        deleted_count = 0
+        
+        # Clean uploads folder
+        if os.path.exists(app.config['UPLOAD_FOLDER']):
+            for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+                if exclude_file_id and filename.startswith(exclude_file_id):
+                    continue  # Skip files belonging to the current upload
+                
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    deleted_count += 1
+                    print(f"Removed old upload file: {filename}")
+        
+        # Clean outputs folder
+        if os.path.exists(app.config['OUTPUT_FOLDER']):
+            for filename in os.listdir(app.config['OUTPUT_FOLDER']):
+                if exclude_file_id and filename.startswith(exclude_file_id):
+                    continue  # Skip files belonging to the current upload
+                
+                file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    deleted_count += 1
+                    print(f"Removed old output file: {filename}")
+        
+        # Clear processing status for old files
+        if exclude_file_id:
+            keys_to_remove = []
+            for key in processing_status.keys():
+                if not key.startswith(exclude_file_id):
+                    keys_to_remove.append(key)
+            
+            for key in keys_to_remove:
+                del processing_status[key]
+        
+        # Clear caches for old files
+        if exclude_file_id:
+            cache_keys_to_remove = []
+            for cache_key in individual_segments_cache.keys():
+                if cache_key != exclude_file_id:
+                    cache_keys_to_remove.append(cache_key)
+            
+            for cache_key in cache_keys_to_remove:
+                del individual_segments_cache[cache_key]
+                if cache_key in individual_segment_masks_cache:
+                    del individual_segment_masks_cache[cache_key]
+        
+        print(f"Cleanup completed: removed {deleted_count} old files")
+        return deleted_count
+        
+    except Exception as e:
+        print(f"Error during file cleanup: {str(e)}")
+        return 0
 
 @app.route('/')
 def index():
@@ -62,6 +149,9 @@ def upload_file():
         filename = secure_filename(file.filename)
 
         print(filename)
+        
+        # Clean up old files before saving new one
+        cleanup_old_files(exclude_file_id=file_id)
         
         # Safely extract file extension with proper error handling
         if '.' in filename:
