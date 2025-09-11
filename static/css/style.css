@@ -217,6 +217,7 @@ footer {
 /* Animation section styles */
 #animationSection {
     border-left: 4px solid #007bff;
+    overflow: hidden; /* Prevent shadow overflow */
 }
 
 #animationSection .card-header {
@@ -228,11 +229,14 @@ footer {
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1rem;
+    overflow: hidden; /* Contain canvas shadows */
 }
 
 .canvas-container canvas {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     border-radius: 4px;
+    max-width: 100%; /* Ensure canvas doesn't overflow */
+    height: auto;
 }
 
 /* Animation controls styling */
@@ -240,6 +244,7 @@ footer {
     border: none;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    overflow: hidden; /* Contain card shadows */
 }
 
 #animationSection .row .card:hover {
@@ -258,9 +263,20 @@ footer {
 }
 
 /* Video preview area styling */
+#videoPreviewArea {
+    overflow: hidden; /* Contain video shadows */
+}
+
 #videoPreviewArea .card {
     border: 2px dashed #dee2e6;
     background-color: #f8f9fa;
+    overflow: hidden; /* Prevent content overflow */
+}
+
+#videoPreviewArea video {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
 }
 
 #videoPreviewArea video {

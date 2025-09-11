@@ -184,6 +184,26 @@ function initializeEventListeners() {
             }
         });
     }
+    
+    // Scale to Cover checkbox
+    const scaleToCover = document.getElementById('scaleToCover');
+    if (scaleToCover) {
+        scaleToCover.addEventListener('change', function() {
+            console.log('Scale to Cover changed:', this.checked);
+            
+            // If there's an active canvas, re-apply scaling
+            if (canvasData.meanColorImage && currentFileId) {
+                console.log('Re-applying scaling with new setting...');
+                
+                // Re-initialize canvas with new scaling
+                setTimeout(() => {
+                    initializeInteractiveCanvas(currentFileId);
+                    const mode = this.checked ? 'покрытия' : 'вписывания';
+                    showAlert(`Режим масштабирования изменен на: ${mode}`, 'info');
+                }, 100);
+            }
+        });
+    }
 }
 
 function handleDragOver(e) {
@@ -722,8 +742,11 @@ function calculateImageToCanvasScale(imageWidth, imageHeight, canvasWidth, canva
 
     console.log(`DEBUG calculateImageToCanvasScale: Scale factors calculated:`, scaleX, scaleY);
 
-    // Use smaller scale to ensure image fits completely within canvas
-    const scale = Math.max(scaleX, scaleY);
+    // Check if "Scale to Cover" checkbox is enabled
+    const scaleToCover = document.getElementById('scaleToCover')?.checked || false;
+    
+    // Use different scaling strategy based on checkbox
+    const scale = scaleToCover ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
 
     console.log(`DEBUG calculateImageToCanvasScale: Final scale:`, scale);
 
@@ -764,9 +787,11 @@ function calculateOptimalImageScale(newImageWidth, newImageHeight, existingCanva
     const scaleX = newImageWidth / existingCanvasWidth;
     const scaleY = newImageHeight / existingCanvasHeight;
 
-    // Use the smaller scale to ensure canvas content fits within new image bounds
-    // This is correct for both larger and smaller images
-    const scale = Math.max(scaleX, scaleY);
+    // Check if "Scale to Cover" checkbox is enabled
+    const scaleToCover = document.getElementById('scaleToCover')?.checked || false;
+    
+    // Use different scaling strategy based on checkbox
+    const scale = scaleToCover ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
 
     // Calculate centered positioning
     const scaledCanvasWidth = existingCanvasWidth * scale;
@@ -1589,6 +1614,7 @@ function stopDrawingAll() {
     const drawLargeBtn = document.getElementById('drawLargeBtn');
     const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
+    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
     const highlightBtn = document.getElementById('highlightBoundariesBtn');
     const progressDiv = document.getElementById('drawingProgress');
     
@@ -1612,6 +1638,11 @@ function stopDrawingAll() {
         drawSmallBtn.disabled = false;
         drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
         drawSmallBtn.style.display = 'inline-block';
+    }
+    if (drawIndividualBtn) {
+        drawIndividualBtn.disabled = false;
+        drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
+        drawIndividualBtn.style.display = 'inline-block';
     }
     if (highlightBtn) {
         highlightBtn.disabled = false;
@@ -1800,8 +1831,8 @@ function drawSingleSegment(segmentId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Apply brush strokes with enhanced visualization
-            applyBrushStrokesFast(data.brush_strokes, segmentId);
+            // Apply brush strokes with enhanced visualization AND capture frames for video
+            applyBrushStrokesWithVideoCapture(data.brush_strokes, segmentId);
             showAlert(`Successfully drew segment ${segmentId} with ${data.brush_strokes.length} ${brushTypes[canvasData.currentBrushType].name.toLowerCase()} strokes`, 'success');
         } else {
             showAlert('Error generating brush strokes: ' + data.error, 'danger');
@@ -1924,10 +1955,16 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         console.log('No scaling applied - drawing at original coordinates');
     }
 
-    brushStrokes.forEach((stroke) => {
+    brushStrokes.forEach((stroke, index) => {
         // Get brush type configuration
         const brushType = stroke.type || canvasData.currentBrushType;
         const brushConfig = brushTypes[brushType] || brushTypes.pencil;
+        
+        // Debug: Log brush type and stroke info with coordinates
+        console.log(`🎨 Processing stroke ${index + 1}/${brushStrokes.length}: type=${brushType}, currentBrushType=${canvasData.currentBrushType}, points=${stroke.points?.length || 0}, width=${stroke.width}`);
+        if (stroke.points && stroke.points.length > 0) {
+            console.log(`🎨 applyBrushStrokesFast - First point for ${brushType}: (${stroke.points[0].x}, ${stroke.points[0].y})`);
+        }
         
         // Apply brush-specific effects
         ctx.globalAlpha = brushConfig.opacity;
@@ -1935,9 +1972,11 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         
         if (brushType === 'brush') {
             // Use brush sprite rendering
+            console.log(`🎨 Using brush sprite rendering for stroke ${index + 1}`);
             drawBrushSprite(ctx, stroke, brushConfig);
         } else {
             // Use traditional line rendering for pencil
+            console.log(`🎨 Using pencil rendering for stroke ${index + 1}`);
             drawPencilStroke(ctx, stroke);
         }
         
@@ -1952,7 +1991,166 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
     }
 }
 
+function applyBrushStrokesWithVideoCapture(brushStrokes, segmentId) {
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+
+    console.log(`Starting video capture for individual segment ${segmentId} with ${brushStrokes.length} strokes`);
+
+    // Apply scaling if available
+    if (canvasData.imageScaling) {
+        const { scale, offsetX, offsetY } = canvasData.imageScaling;
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+    }
+
+    // Capture frame before drawing (current state)
+    if (canvasData.videoRecorder && canvasData.videoRecorder.isRecording) {
+        canvasData.videoRecorder.captureFrame();
+    }
+
+    // Apply strokes progressively with frame capture
+    brushStrokes.forEach((stroke, index) => {
+        // Get brush type configuration
+        const brushType = stroke.type || canvasData.currentBrushType;
+        const brushConfig = brushTypes[brushType] || brushTypes.pencil;
+        
+        // Debug: Log brush type and stroke info for video capture
+        console.log(`🎥 Video capture stroke ${index + 1}/${brushStrokes.length}: type=${brushType}, currentBrushType=${canvasData.currentBrushType}, points=${stroke.points?.length || 0}, width=${stroke.width}`);
+        
+        // Apply brush-specific effects
+        ctx.globalAlpha = brushConfig.opacity;
+        ctx.globalCompositeOperation = brushConfig.blendMode;
+        
+        if (brushType === 'brush') {
+            // Use brush sprite rendering
+            console.log(`🎥 Using brush sprite rendering for video capture stroke ${index + 1}`);
+            drawBrushSprite(ctx, stroke, brushConfig);
+        } else {
+            // Use traditional line rendering for pencil
+            console.log(`🎥 Using pencil rendering for video capture stroke ${index + 1}`);
+            drawPencilStroke(ctx, stroke);
+        }
+        
+        // Reset context
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.shadowBlur = 0;
+
+        // Capture frame after every few strokes for video
+        if (canvasData.videoRecorder && canvasData.videoRecorder.isRecording) {
+            // Capture more frames for individual segments to show detail
+            if (index % Math.max(1, Math.floor(brushStrokes.length / 10)) === 0 || index === brushStrokes.length - 1) {
+                canvasData.videoRecorder.captureFrame();
+            }
+        }
+    });
+
+    // Capture final frame
+    if (canvasData.videoRecorder && canvasData.videoRecorder.isRecording) {
+        canvasData.videoRecorder.captureFrame();
+    }
+
+    if (canvasData.imageScaling) {
+        ctx.restore();
+    }
+
+    console.log(`Completed video capture for individual segment ${segmentId}`);
+}
+
+function applySegmentFill(fillData, segmentId) {
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+
+    console.log('applySegmentFill - filling segment:', segmentId);
+
+    // Get image scaling information
+    const imageScale = canvasData.imageScaling;
+    if (!imageScale) {
+        console.error('No image scaling data available for fill operation');
+        return;
+    }
+
+    fillData.forEach((fill) => {
+        if (fill.type === 'fill' && fill.pixels && fill.color) {
+            const [r, g, b] = fill.color;
+            
+            // Scale pixel coordinates to canvas size
+            const scaledPixels = fill.pixels.map(([x, y]) => [
+                Math.round(x * imageScale.scale + imageScale.offsetX),
+                Math.round(y * imageScale.scale + imageScale.offsetY)
+            ]);
+            
+            // Calculate bounds for scaled pixels
+            const xs = scaledPixels.map(p => p[0]);
+            const ys = scaledPixels.map(p => p[1]);
+            const bounds = {
+                min_x: Math.min(...xs),
+                max_x: Math.max(...xs),
+                min_y: Math.min(...ys),
+                max_y: Math.max(...ys)
+            };
+            
+            const width = bounds.max_x - bounds.min_x + 1;
+            const height = bounds.max_y - bounds.min_y + 1;
+            
+            // Get current image data for the bounding box
+            let imageData;
+            try {
+                imageData = ctx.getImageData(bounds.min_x, bounds.min_y, width, height);
+            } catch (e) {
+                // Fallback to slower method if getImageData fails
+                console.warn('Fast fill failed, using fallback method');
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                scaledPixels.forEach(([x, y]) => {
+                    ctx.fillRect(x, y, 1, 1);
+                });
+                return;
+            }
+            
+            const data = imageData.data;
+            
+            // Create a set of scaled pixel coordinates for fast lookup
+            const pixelSet = new Set();
+            scaledPixels.forEach(([x, y]) => {
+                pixelSet.add(`${x - bounds.min_x},${y - bounds.min_y}`);
+            });
+            
+            // Fill pixels in the ImageData
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (pixelSet.has(`${x},${y}`)) {
+                        const index = (y * width + x) * 4;
+                        data[index] = r;     // Red
+                        data[index + 1] = g; // Green
+                        data[index + 2] = b; // Blue
+                        data[index + 3] = 255; // Alpha
+                    }
+                }
+            }
+            
+            // Put the modified image data back to canvas
+            ctx.putImageData(imageData, bounds.min_x, bounds.min_y);
+            
+            console.log(`Fast filled segment ${segmentId} with ${fill.pixels.length} pixels using color rgb(${r}, ${g}, ${b})`);
+        }
+    });
+}
+
 function drawPencilStroke(ctx, stroke) {
+    // Debug: Log pencil stroke coordinates for comparison
+    const transform = ctx.getTransform();
+    console.log(`✏️ drawPencilStroke - Context transform:`, {
+        scaleX: transform.a,
+        scaleY: transform.d,
+        translateX: transform.e,
+        translateY: transform.f
+    });
+    if (stroke.points.length > 0) {
+        console.log(`✏️ Pencil stroke points: first=(${stroke.points[0].x}, ${stroke.points[0].y}), count=${stroke.points.length}, width=${stroke.width}`);
+    }
+    
     // Draw the actual brush stroke
     ctx.strokeStyle = stroke.color;
     ctx.lineWidth = stroke.width;
@@ -1981,6 +2179,24 @@ function drawPencilStroke(ctx, stroke) {
 
 async function drawBrushSprite(ctx, stroke, brushConfig) {
     if (stroke.points.length === 0) return;
+    
+    // Debug: FIRST THING - log coordinates as received
+    console.log(`🎨 drawBrushSprite ENTRY - Received coordinates: first=(${stroke.points[0]?.x}, ${stroke.points[0]?.y}), count=${stroke.points.length}`);
+    
+    // Debug: Check if scaling is applied to context
+    const transform = ctx.getTransform();
+    console.log(`🎨 drawBrushSprite - Context transform:`, {
+        scaleX: transform.a,
+        scaleY: transform.d,
+        translateX: transform.e,
+        translateY: transform.f
+    });
+    
+    // Debug: Log brush stroke coordinates for comparison with pencil
+    if (stroke.points.length > 0) {
+        console.log(`🎨 Brush stroke points: first=(${stroke.points[0].x}, ${stroke.points[0].y}), count=${stroke.points.length}, width=${stroke.width}`);
+        console.log(`🎨 Brush stroke color: ${stroke.color}, type: ${stroke.type || 'undefined'}`);
+    }
     
     // Calculate sprite size based on stroke width
     let originalSize = stroke.width || 4;
@@ -2014,51 +2230,73 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         baseSize = 6;
     }
     
-    // Draw sprites along the stroke path
+    // Draw brush strokes as dots (exactly like pencil - use coordinates as-is)
+    ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+    ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+    ctx.lineWidth = stroke.width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.95;
+    ctx.globalCompositeOperation = 'source-over';
+    
     if (stroke.points.length === 1) {
-        // Single point - draw one sprite with random rotation
+        // Single point - draw with manual scaling (ctx.lineTo doesn't apply transforms)
         const point = stroke.points[0];
-        // Size randomization: 0% to +30% increase only
-        const size = baseSize * (1 + Math.random() * 0.3);
-        // Angle randomization: ±30% (±0.52 radians ≈ ±30 degrees)
-        const rotation = (Math.random() - 0.5) * 1.05; // ±0.52 radians
-        drawColorizedSprite(ctx, spriteImage, point.x, point.y, size, color, rotation);
+        const radius = baseSize / 2;
+        
+        console.log(`🎨 Drawing single brush dot at (${point.x}, ${point.y}) with radius ${radius} - applying manual scaling`);
+        
+        // Apply scaling manually
+        const scaledX = point.x * transform.a + transform.e;
+        const scaledY = point.y * transform.d + transform.f;
+        
+        console.log(`🎨 Single point scaled: (${point.x}, ${point.y}) -> (${scaledX}, ${scaledY})`);
+        
+        // Reset transform and draw at scaled coordinates
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        ctx.beginPath();
+        ctx.lineWidth = baseSize;
+        ctx.lineCap = 'round';
+        ctx.moveTo(scaledX, scaledY);
+        ctx.lineTo(scaledX + 0.1, scaledY); // Tiny line that appears as a dot
+        ctx.stroke();
+        
+        // Restore transform
+        ctx.setTransform(transform);
     } else {
-        // Multiple points - draw sprites along the path with direction-based rotation
-        const totalDistance = calculateStrokeDistance(stroke.points);
-        // Use original size for spacing calculation to maintain proper density
-        const baseSpacing = originalSize * 1.2; // Base spacing between sprites
+        // Multiple points - draw thick lines with manual scaling (ctx.lineTo doesn't apply transforms)
+        console.log(`🎨 Drawing brush stroke with ${stroke.points.length} points - applying manual scaling`);
+        console.log(`🎨 Transform: scaleX=${transform.a}, translateX=${transform.e}`);
+        console.log(`🎨 Original coordinates: (${stroke.points[0].x}, ${stroke.points[0].y}) to (${stroke.points[1]?.x}, ${stroke.points[1]?.y})`);
         
-        let currentDistance = 0;
-        let spriteIndex = 0;
+        // Apply scaling manually since ctx.lineTo doesn't respect transforms
+        const scaledPoints = stroke.points.map(point => ({
+            x: point.x * transform.a + transform.e,
+            y: point.y * transform.d + transform.f
+        }));
         
-        while (currentDistance < totalDistance) {
-            const t = currentDistance / totalDistance; // Normalized position (0 to 1)
-            const point = interpolateAlongStroke(stroke.points, t);
-            
-            if (point) {
-                // Calculate stroke direction at this point
-                const direction = getStrokeDirectionAt(stroke.points, t);
-                
-                // Enhanced randomization (30% for all parameters)
-                // Size: 0% to +30% increase only
-                const size = baseSize * (1 + Math.random() * 0.3);
-                
-                // Angle: ±30% variation from stroke direction
-                const rotationVariation = (Math.random() - 0.5) * 1.05; // ±0.52 radians (±30°)
-                const rotation = direction + rotationVariation;
-                
-                drawColorizedSprite(ctx, spriteImage, point.x, point.y, size, color, rotation);
-                
-                // Spacing: 0% to +30% increase only
-                const spacingIncrease = Math.random() * 0.3; // 0% to +30%
-                const nextSpacing = baseSpacing * (1 + spacingIncrease);
-                currentDistance += nextSpacing;
-                spriteIndex++;
-            } else {
-                break;
-            }
+        console.log(`🎨 Scaled coordinates: (${scaledPoints[0].x}, ${scaledPoints[0].y}) to (${scaledPoints[1]?.x}, ${scaledPoints[1]?.y})`);
+        
+        // Reset transform and draw at scaled coordinates
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        ctx.beginPath();
+        ctx.lineWidth = baseSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Draw path through scaled points
+        ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+        for (let i = 1; i < scaledPoints.length; i++) {
+            ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
         }
+        ctx.stroke();
+        
+        // Restore transform
+        ctx.setTransform(transform);
+        
+        console.log(`🎨 Brush stroke drawn with manual scaling, lineWidth=${baseSize}`);
     }
 }
 
@@ -2083,39 +2321,6 @@ async function loadBrushSprite(spriteUrl) {
     });
 }
 
-function drawColorizedSprite(ctx, spriteImage, x, y, size, color, rotation = 0) {
-    // Save the current context state
-    ctx.save();
-    
-    // Move to the sprite position and apply rotation
-    ctx.translate(x, y);
-    ctx.rotate(rotation);
-    
-    // Create a temporary canvas for colorization
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    
-    tempCanvas.width = spriteImage.width;
-    tempCanvas.height = spriteImage.height;
-    
-    // First, fill with the target color
-    tempCtx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-    
-    // Then use the sprite as a mask with globalCompositeOperation
-    tempCtx.globalCompositeOperation = 'destination-in';
-    tempCtx.drawImage(spriteImage, 0, 0);
-    
-    // Draw the colorized sprite to the main canvas (centered)
-    const halfSize = size / 2;
-    ctx.drawImage(tempCanvas, -halfSize, -halfSize, size, size);
-    
-    // Restore the context state
-    ctx.restore();
-    
-    // Debug: Log that sprite was drawn
-    console.log(`🎨 Drew colorized sprite at (${x}, ${y}) with size ${size}, rotation ${rotation.toFixed(2)}rad, and color RGB(${color.r}, ${color.g}, ${color.b})`);
-}
 
 function parseColor(colorString) {
     // Parse RGB color string like "rgb(255, 0, 0)" or hex like "#ff0000"
@@ -3020,6 +3225,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     const drawLargeBtn = document.getElementById('drawLargeBtn');
     const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
+    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
     const stopBtn = document.getElementById('stopDrawingBtn');
     
     if (progressDiv) progressDiv.style.display = 'block';
@@ -3038,6 +3244,10 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     if (drawSmallBtn) {
         drawSmallBtn.disabled = true;
         drawSmallBtn.style.display = 'none';
+    }
+    if (drawIndividualBtn) {
+        drawIndividualBtn.disabled = true;
+        drawIndividualBtn.style.display = 'none';
     }
     if (stopBtn) {
         stopBtn.style.display = 'inline-block';
@@ -3104,6 +3314,11 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
                 drawSmallBtn.disabled = false;
                 drawSmallBtn.innerHTML = '<i class="fas fa-brush"></i> Small Fragments';
                 drawSmallBtn.style.display = 'inline-block';
+            }
+            if (drawIndividualBtn) {
+                drawIndividualBtn.disabled = false;
+                drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
+                drawIndividualBtn.style.display = 'inline-block';
             }
             if (stopBtn) stopBtn.style.display = 'none';
             stopDrawingTimer();
@@ -3216,10 +3431,30 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
 function drawIndividualSegments() {
     console.log('🎨 drawIndividualSegments called');
     
-    // First, try using existing segment data if available
-    if (canvasData.segmentInfo && canvasData.segmentInfo.segments && canvasData.segmentInfo.segments.length > 0) {
-        console.log('✅ Using existing segment data for individual drawing');
-        const segments = canvasData.segmentInfo.segments;
+    // Individual Segments works differently - it gets segment list from backend
+    // instead of using frontend segmentation data to avoid color merging
+    if (!currentFileId) {
+        showAlert('No file selected', 'danger');
+        return;
+    }
+    
+    console.log('🔍 Getting individual segments list from backend...');
+    
+    // Get individual segments list from backend
+    fetch('/get_individual_segments', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.segments && data.segments.length > 0) {
+            console.log('✅ Got individual segments from backend:', data.segments.length);
+            const segments = data.segments;
         
         // Show drawing progress and manage buttons (same as other drawing functions)
         const progressDiv = document.getElementById('drawingProgress');
@@ -3258,6 +3493,10 @@ function drawIndividualSegments() {
         canvasData.isDrawingAll = true;
         canvasData.drawingInterrupted = false;
         
+        // For individual segments, we want more granular segments
+        // Use higher detail level to get more individual segments
+        console.log('🔍 Individual Segments mode: Using more granular segmentation');
+        
         // Sort segments by pixel count (largest first) for better visual progression
         const sortedSegments = segments.sort((a, b) => b.pixel_count - a.pixel_count);
         
@@ -3270,19 +3509,55 @@ function drawIndividualSegments() {
         // Start drawing timer
         startDrawingTimer();
         
-        // Draw each segment individually without color merging
-        drawSegmentsSequentially(sortedSegments, 0, 'individual');
-        return;
-    }
-    
-    // If no existing data, show error message
+        // Initialize progress bars
+        resetProgressBars();
+        updateDrawingProgress(0, sortedSegments.length);
+        
+        // Show progress bars
+        const progressBarsDiv = document.getElementById('canvasProgressBars');
+        if (progressBarsDiv) progressBarsDiv.style.display = 'block';
+        
+            // Draw each segment individually without color merging
+            drawSegmentsSequentially(sortedSegments, 0, 'individual');
+        } else {
+            console.error('Failed to get individual segments:', data.error);
+            showMessage('Failed to load individual segments. Please run segmentation first.', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error getting individual segments:', error);
+        showMessage('Error loading individual segments. Please try again.', 'danger');
+    });
+}
+
+function clearIndividualSegmentsCache() {
     if (!currentFileId) {
-        showAlert('No file selected', 'danger');
+        console.log('No current file ID, skipping cache clear');
         return;
     }
     
-    // If no segments available, suggest running segmentation first
-    showMessage('No segments available. Please run segmentation first.', 'warning');
+    console.log('🧹 Clearing individual segments cache for file:', currentFileId);
+    
+    fetch('/clear_individual_segments_cache', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Cache cleared:', data.message);
+        } else {
+            console.error('❌ Failed to clear cache:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error clearing cache:', error);
+    });
 }
 
 function drawSegmentsSequentially(segments, index, mode = 'normal') {
@@ -3340,6 +3615,11 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
             resetProgressBars();
         }, 1000);
         
+        // Clear individual segments cache if this was individual mode
+        if (mode === 'individual') {
+            clearIndividualSegmentsCache();
+        }
+        
         showMessage(`Completed drawing ${segments.length} individual segments!`, 'success');
         return;
     }
@@ -3383,28 +3663,54 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
         }
         
         if (data.success) {
-            // Apply brush strokes to canvas
+            console.log(`[DEBUG] Segment ${segmentId} response:`, {
+                mode: mode,
+                dataMode: data.mode,
+                strokesLength: data.brush_strokes ? data.brush_strokes.length : 0,
+                firstItemType: data.brush_strokes && data.brush_strokes.length > 0 ? data.brush_strokes[0].type : 'none'
+            });
+            
+            // Apply brush strokes to canvas for both normal and individual modes
+            console.log(`[STROKE] Applying brush strokes for segment ${segmentId} (mode: ${mode})`);
             applyBrushStrokesFast(data.brush_strokes, segmentId);
             
-            // Continue with next segment after a short delay (reduced from 100ms to 50ms for speed)
+            // Use different delays based on mode - Individual Segments can be faster due to caching
+            const delay = mode === 'individual' ? 10 : 50; // 10ms for individual (cached), 50ms for normal strokes
             setTimeout(() => {
+                // Check if drawing was interrupted during the delay
+                if (canvasData.drawingInterrupted) {
+                    console.log('Drawing interrupted during delay, stopping');
+                    return;
+                }
                 drawSegmentsSequentially(segments, index + 1, mode);
-            }, 50);
+            }, delay);
             
         } else {
             console.error(`Error drawing segment ${segmentId}:`, data.error);
             // Continue with next segment even if this one failed
+            const errorDelay = mode === 'individual' ? 5 : 50; // Very fast error recovery for individual
             setTimeout(() => {
+                // Check if drawing was interrupted during the delay
+                if (canvasData.drawingInterrupted) {
+                    console.log('Drawing interrupted during delay, stopping');
+                    return;
+                }
                 drawSegmentsSequentially(segments, index + 1, mode);
-            }, 50);
+            }, errorDelay);
         }
     })
     .catch(error => {
         console.error(`Error drawing segment ${segmentId}:`, error);
         // Continue with next segment even if this one failed
+        const errorDelay = mode === 'individual' ? 5 : 50; // Very fast error recovery for individual
         setTimeout(() => {
+            // Check if drawing was interrupted during the delay
+            if (canvasData.drawingInterrupted) {
+                console.log('Drawing interrupted during delay, stopping');
+                return;
+            }
             drawSegmentsSequentially(segments, index + 1, mode);
-        }, 50);
+        }, errorDelay);
     });
 }
 

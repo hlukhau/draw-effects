@@ -28,7 +28,8 @@ Transform your photos into beautiful animated drawing videos! This Flask web app
 
 3. **Run the application**:
    ```bash
-   python app.py
+   pkill -f "python.*app.py"
+   python3 app.py
    ```
 
 4. **Open your browser** and navigate to `http://localhost:5000`

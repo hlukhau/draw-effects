@@ -15,6 +15,8 @@ class DrawingEffectGenerator:
         self.styles = {
             'pencil': self._pencil_style
         }
+        # Cache for individual segment data to avoid repeated file reads
+        self._individual_segment_cache = {}
     
     def create_drawing_video(self, input_path, output_path, style='pencil', detail_level=3, video_duration=10, color_threshold=30, progress_callback=None):
         """
@@ -584,16 +586,28 @@ class DrawingEffectGenerator:
         image = self._load_and_preprocess_image(input_path)
         
         if progress_callback:
-            progress_callback(20, "Creating color-based segmentation...")
+            progress_callback(20, "Creating regular color-based segmentation...")
         
-        # Create segmentation with the specified threshold
+        # Create regular segmentation with the specified threshold (for Draw All, Large/Medium/Small)
         segments = self._segment_by_color_similarity(image, color_threshold)
         
         if progress_callback:
-            progress_callback(50, "Computing average colors for segments...")
+            progress_callback(35, "Creating individual segmentation for detailed drawing...")
         
-        # Compute average colors for each segment
+        # Create individual segmentation (more detailed, for Individual Segments)
+        individual_segments = self._segment_by_color_similarity_individual(image, color_threshold)
+        
+        if progress_callback:
+            progress_callback(50, "Computing average colors for regular segments...")
+        
+        # Compute average colors for regular segments
         segment_info = self._compute_segment_average_colors(image, segments)
+        
+        if progress_callback:
+            progress_callback(60, "Computing average colors for individual segments...")
+        
+        # Compute average colors for individual segments
+        individual_segment_info = self._compute_segment_average_colors(image, individual_segments)
         
         if progress_callback:
             progress_callback(70, "Creating visualization images...")
@@ -647,7 +661,37 @@ class DrawingEffectGenerator:
         output_files.append(json_filename)
         
         if progress_callback:
-            progress_callback(100, f"Segmentation completed! Found {len(segment_info)} segments.")
+            progress_callback(85, "Saving individual segmentation data...")
+        
+        # Save individual segment information as separate JSON file
+        individual_segment_data = {
+            'threshold': color_threshold,
+            'total_segments': len(individual_segment_info),
+            'segmentation_type': 'individual',  # Mark as individual segmentation
+            'segments': [
+                {
+                    'id': int(seg_id),
+                    'pixel_count': int(info['pixel_count']),
+                    'average_color': {
+                        'r': int(info['avg_color'][0]),
+                        'g': int(info['avg_color'][1]), 
+                        'b': int(info['avg_color'][2])
+                    },
+                    'average_color_hex': f"#{int(info['avg_color'][0]):02x}{int(info['avg_color'][1]):02x}{int(info['avg_color'][2]):02x}"
+                }
+                for seg_id, info in individual_segment_info.items()
+            ]
+        }
+        
+        # Save individual segmentation with "_individual" suffix
+        individual_json_filename = f"{file_id}_03_segment_info_individual_t{color_threshold}.json"
+        individual_json_path = os.path.join(output_dir, individual_json_filename)
+        with open(individual_json_path, 'w') as f:
+            json.dump(individual_segment_data, f, indent=2)
+        output_files.append(individual_json_filename)
+        
+        if progress_callback:
+            progress_callback(100, f"Segmentation completed! Regular: {len(segment_info)} segments, Individual: {len(individual_segment_info)} segments.")
         
         # Post-process cleanup: now that new files are created, we can safely clean up old ones
         self._post_process_cleanup(output_dir, file_id, color_threshold)
@@ -834,6 +878,60 @@ class DrawingEffectGenerator:
         
         return segments
     
+    def _segment_by_color_similarity_individual(self, image, threshold):
+        """
+        Segment image for individual drawing - creates non-overlapping detailed segments
+        Uses K-means clustering to ensure each pixel belongs to exactly one segment
+        
+        Args:
+            image: Input image (RGB)
+            threshold: Color similarity threshold (affects number of clusters)
+            
+        Returns:
+            Segmented image with different segment IDs (non-overlapping individual segments)
+        """
+        from sklearn.cluster import KMeans
+        import numpy as np
+        
+        h, w = image.shape[:2]
+        
+        # Calculate number of clusters based on threshold (inverse relationship)
+        # Lower threshold = more segments, Higher threshold = fewer segments
+        base_clusters = max(50, min(500, int(1000 / threshold)))
+        
+        print(f"[INDIVIDUAL] Creating {base_clusters} individual segments (threshold: {threshold})")
+        
+        # Reshape image to 2D array of pixels
+        pixels = image.reshape(-1, 3).astype(np.float32)
+        
+        # Add spatial information to make segments more spatially coherent
+        # Create coordinate grid
+        y_coords, x_coords = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+        x_coords = x_coords.reshape(-1, 1).astype(np.float32) / w  # Normalize to 0-1
+        y_coords = y_coords.reshape(-1, 1).astype(np.float32) / h  # Normalize to 0-1
+        
+        # Combine color and spatial features (weight spatial less than color)
+        spatial_weight = 0.3  # How much to weight spatial vs color similarity
+        features = np.hstack([
+            pixels,  # RGB values (0-255)
+            x_coords * 255 * spatial_weight,  # Spatial X (weighted)
+            y_coords * 255 * spatial_weight   # Spatial Y (weighted)
+        ])
+        
+        # Perform K-means clustering
+        kmeans = KMeans(n_clusters=base_clusters, random_state=42, n_init=10)
+        cluster_labels = kmeans.fit_predict(features)
+        
+        # Reshape back to image dimensions
+        segments = cluster_labels.reshape(h, w).astype(np.int32)
+        
+        # Renumber segments to start from 1 (0 is background)
+        segments = segments + 1
+        
+        print(f"[INDIVIDUAL] Created {np.max(segments)} individual non-overlapping segments")
+        
+        return segments
+    
     def _region_growing(self, image, seed, threshold, visited):
         """
         Region growing algorithm for color-based segmentation
@@ -922,12 +1020,12 @@ class DrawingEffectGenerator:
         # CRITICAL FIX: Exclude boundary JSON files when looking for segment data
         json_files = [f for f in os.listdir(outputs_dir) 
                      if f.startswith(f"{file_id}_") and f.endswith('.json') 
-                     and 'boundaries' not in f]  # Exclude boundary files
+                     and 'boundaries' not in f and 'individual' not in f]  # Exclude both boundary and individual files
         if not json_files:
-            # Try alternative pattern matching, still excluding boundary files
+            # Try alternative pattern matching, still excluding boundary and individual files
             json_files = [f for f in os.listdir(outputs_dir) 
                          if file_id in f and f.endswith('.json') 
-                         and 'boundaries' not in f]
+                         and 'boundaries' not in f and 'individual' not in f]
             
         if not json_files:
             raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
@@ -944,17 +1042,10 @@ class DrawingEffectGenerator:
         newest_json_file = json_files_with_time[0][0]
         
         json_path = os.path.join(outputs_dir, newest_json_file)
-        # print(f"DEBUG: Found {len(json_files)} JSON files for file_id: {file_id}")
-        # print(f"DEBUG: Available JSON files: {[f for f, _ in json_files_with_time]}")
-        # print(f"DEBUG: Selected NEWEST JSON file: {newest_json_file}")
         print(f"Loading segment data from: {json_path}")
         
         with open(json_path, 'r') as f:
             segment_data = json.load(f)
-        
-        # Debug: Print the structure of segment_data
-        # print(f"DEBUG: segment_data keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Not a dict'}")
-        # print(f"DEBUG: segment_data type: {type(segment_data)}")
         
         # Handle different possible data structures
         segments_list = None
@@ -968,19 +1059,12 @@ class DrawingEffectGenerator:
                 for key in segment_data.keys():
                     if isinstance(segment_data[key], list):
                         segments_list = segment_data[key]
-                        # print(f"DEBUG: Using key '{key}' as segments list")
                         break
         elif isinstance(segment_data, list):
             segments_list = segment_data
             
         if segments_list is None:
             raise Exception(f"Could not find segments data in JSON structure. Available keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Data is not a dict'}")
-        
-        # Debug: Print available segment IDs
-        available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
-        # print(f"DEBUG: Available segment IDs: {sorted(available_ids)[:10]}... (showing first 10)")
-        # print(f"DEBUG: Looking for segment_id: {segment_id} (type: {type(segment_id)})")
-        # print(f"DEBUG: Total segments: {len(segments_list)}")
         
         # Find the target segment
         target_segment = None
@@ -991,43 +1075,29 @@ class DrawingEffectGenerator:
         
         if not target_segment:
             # Try alternative matching strategies
-            # print(f"DEBUG: Direct ID match failed. Trying alternative strategies...")
-            
-            # Strategy 1: Try converting segment_id to int if it's a string
             if isinstance(segment_id, str) and segment_id.isdigit():
                 segment_id_int = int(segment_id)
                 for segment in segments_list:
                     if segment['id'] == segment_id_int:
                         target_segment = segment
-                        # print(f"DEBUG: Found segment using int conversion: {segment_id_int}")
                         break
             
-            # Strategy 2: Try converting segment IDs to string if segment_id is string
             if not target_segment and isinstance(segment_id, str):
                 for segment in segments_list:
                     if str(segment['id']) == segment_id:
                         target_segment = segment
-                        # print(f"DEBUG: Found segment using string conversion: {segment_id}")
                         break
             
             # Strategy 3: Try using segment_id as index if it's within range
             if not target_segment and isinstance(segment_id, int) and 0 <= segment_id < len(segments_list):
                 target_segment = segments_list[segment_id]
-                # print(f"DEBUG: Found segment using index: {segment_id}")
         
         if not target_segment:
+            available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
             raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
-        
-        # Debug: Print target segment structure
-        # print(f"🔍 DEBUG: Target segment keys: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'Not a dict'}")
-        # print(f"🔍 DEBUG: Target segment type: {type(target_segment)}")
-        # if isinstance(target_segment, dict):
-        #     print(f"🔍 DEBUG: Target segment sample data: {dict(list(target_segment.items())[:3])}")  # Show first 3 items
         
         # Check if average_color exists and handle different structures
         if 'average_color' not in target_segment:
-            # print(f"❌ ERROR: 'average_color' field missing from segment {segment_id}")
-            # print(f"❌ ERROR: Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
             raise Exception(f"Segment {segment_id} missing 'average_color' field. Available fields: {list(target_segment.keys()) if isinstance(target_segment, dict) else 'N/A'}")
         
         # Load the mean color image to get segment mask
@@ -1053,9 +1123,6 @@ class DrawingEffectGenerator:
         newest_mean_color_file = mean_color_files_with_time[0][0]
         
         mean_color_path = os.path.join(outputs_dir, newest_mean_color_file)
-        # print(f"DEBUG: Found {len(mean_color_files)} mean color files for file_id: {file_id}")
-        # print(f"DEBUG: Available mean color files: {[f for f, _ in mean_color_files_with_time]}")
-        # print(f"DEBUG: Selected NEWEST mean color file: {newest_mean_color_file}")
         print(f"Loading mean color image from: {mean_color_path}")
         
         mean_image = cv2.imread(mean_color_path)
@@ -1071,12 +1138,6 @@ class DrawingEffectGenerator:
         # Find pixels matching the segment color
         mask = np.all(mean_image == target_color, axis=2)
         
-        # print(f"🔍 DEBUG: Found {np.sum(mask)} pixels for segment {segment_id}")
-        # print(f"🔍 DEBUG: Target color: {target_color}")
-        # print(f"🔍 DEBUG: Mean image shape: {mean_image.shape}")
-        # print(f"🔍 DEBUG: Mask shape: {mask.shape}")
-        # print(f"🔍 DEBUG: Mask has any True values: {np.any(mask)}")
-        
         if np.sum(mask) == 0:
             print(f"[ERROR] No pixels found for segment {segment_id} with color {target_color}")
             return []
@@ -1088,7 +1149,7 @@ class DrawingEffectGenerator:
         
         return brush_strokes
     
-    def generate_individual_segment_strokes(self, output_dir, file_id, segment_id, brush_type='pencil', stroke_density=1.0):
+    def generate_individual_segment_strokes(self, output_dir, file_id, segment_id, brush_type='pencil', stroke_density=1.0, external_cache=None):
         """
         Generate brush strokes for a specific individual segment without color merging
         Each segment is processed separately based on its exact boundaries from segmentation
@@ -1108,40 +1169,84 @@ class DrawingEffectGenerator:
         from scipy import ndimage
         from skimage import measure
         
-        # Load segment information - look in the outputs directory
-        outputs_dir = os.path.join(os.path.dirname(output_dir), 'outputs')
-        if not os.path.exists(outputs_dir):
-            outputs_dir = output_dir  # fallback to original directory
+        # Use external cache if provided, otherwise use instance cache
+        cache = external_cache if external_cache is not None else self._individual_segment_cache
         
-        print(f"[INDIVIDUAL] Looking for segment files in: {outputs_dir}")
-        
-        # Load JSON segment data
-        json_files = [f for f in os.listdir(outputs_dir) 
-                     if f.startswith(f"{file_id}_") and f.endswith('.json') 
-                     and 'boundaries' not in f]  # Exclude boundary files
-        if not json_files:
-            json_files = [f for f in os.listdir(outputs_dir) 
-                         if file_id in f and f.endswith('.json') 
-                         and 'boundaries' not in f]
+        # Check cache first to avoid repeated file reads and segmentation
+        cache_key = file_id
+        if cache_key not in cache:
+            # Load segment information - look in the outputs directory
+            outputs_dir = os.path.join(os.path.dirname(output_dir), 'outputs')
+            if not os.path.exists(outputs_dir):
+                outputs_dir = output_dir  # fallback to original directory
             
-        if not json_files:
-            raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
-        
-        # Always select the NEWEST JSON file by modification time
-        json_files_with_time = []
-        for json_file in json_files:
-            file_path = os.path.join(outputs_dir, json_file)
-            mod_time = os.path.getmtime(file_path)
-            json_files_with_time.append((json_file, mod_time))
-        
-        json_files_with_time.sort(key=lambda x: x[1], reverse=True)
-        newest_json_file = json_files_with_time[0][0]
-        
-        json_path = os.path.join(outputs_dir, newest_json_file)
-        print(f"[INDIVIDUAL] Loading segment data from: {json_path}")
-        
-        with open(json_path, 'r') as f:
-            segment_data = json.load(f)
+            print(f"[INDIVIDUAL] Looking for segment files in: {outputs_dir}")
+            
+            # Load JSON segment data - prioritize individual segmentation files
+            json_files = [f for f in os.listdir(outputs_dir) 
+                         if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                         and 'individual' in f and 'boundaries' not in f]  # Look for individual files first
+            
+            if not json_files:
+                # Fallback to regular segmentation files if individual not found
+                json_files = [f for f in os.listdir(outputs_dir) 
+                             if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                             and 'boundaries' not in f and 'individual' not in f]
+                print(f"[INDIVIDUAL] No individual segmentation found, using regular segmentation")
+            else:
+                print(f"[INDIVIDUAL] Found individual segmentation files: {json_files}")
+                
+            if not json_files:
+                json_files = [f for f in os.listdir(outputs_dir) 
+                             if file_id in f and f.endswith('.json') 
+                             and 'boundaries' not in f]
+                
+            if not json_files:
+                raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
+            
+            # Always select the NEWEST JSON file by modification time
+            json_files_with_time = []
+            for json_file in json_files:
+                file_path = os.path.join(outputs_dir, json_file)
+                mod_time = os.path.getmtime(file_path)
+                json_files_with_time.append((json_file, mod_time))
+            
+            json_files_with_time.sort(key=lambda x: x[1], reverse=True)
+            newest_json_file = json_files_with_time[0][0]
+            
+            json_path = os.path.join(outputs_dir, newest_json_file)
+            print(f"[INDIVIDUAL] Loading segment data from: {json_path}")
+            
+            with open(json_path, 'r') as f:
+                segment_data = json.load(f)
+                
+            # Load the original image to create segmentation mask
+            original_files = [f for f in os.listdir(outputs_dir) 
+                             if f.startswith(f"{file_id}_") and 'original' in f and f.endswith('.png')]
+            if not original_files:
+                raise Exception(f"Original image not found for file_id: {file_id}")
+            
+            original_path = os.path.join(outputs_dir, original_files[0])
+            original_image = self._load_image_robust(original_path)
+            
+            # Create segmentation mask once and cache it
+            threshold = segment_data.get('threshold', 30)
+            segments_mask = self._segment_by_color_similarity_individual(original_image, threshold)
+            
+            # Cache both the JSON data and the segmentation mask
+            cache[cache_key] = {
+                'segment_data': segment_data,
+                'segments_mask': segments_mask,
+                'original_image': original_image
+            }
+            print(f"[INDIVIDUAL] Cached segment data and mask for file_id: {file_id}")
+        else:
+            # Use cached data
+            cached_data = cache[cache_key]
+            segment_data = cached_data['segment_data']
+            segments_mask = cached_data['segments_mask']
+            original_image = cached_data['original_image']
+            print(f"[INDIVIDUAL] Using cached segment data and mask for file_id: {file_id}")
         
         # Handle different possible data structures
         segments_list = None
@@ -1187,19 +1292,7 @@ class DrawingEffectGenerator:
             available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
             raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
         
-        # Load the original image to recreate exact segmentation
-        original_files = [f for f in os.listdir(outputs_dir) 
-                         if f.startswith(f"{file_id}_") and 'original' in f and f.endswith('.png')]
-        if not original_files:
-            raise Exception(f"Original image not found for file_id: {file_id}")
-        
-        original_path = os.path.join(outputs_dir, original_files[0])
-        # Use the same robust loading method as _load_and_preprocess_image
-        original_image = self._load_image_robust(original_path)
-        
-        # Recreate segmentation to get exact segment boundaries
-        threshold = segment_data.get('threshold', 30)
-        segments_mask = self._segment_by_color_similarity(original_image, threshold)
+        # segments_mask and original_image are now loaded from cache or created above
         
         # Create mask for the specific segment ID - this preserves individual segment boundaries
         mask = (segments_mask == segment_id)
@@ -1210,12 +1303,422 @@ class DrawingEffectGenerator:
             print(f"[INDIVIDUAL ERROR] No pixels found for segment {segment_id}")
             return []
         
-        # Generate brush strokes for this individual segment
-        brush_strokes = self._analyze_individual_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
+        # Generate hatching strokes for this individual segment (specialized algorithm)
+        hatching_strokes = self._create_individual_segment_hatching(mask, target_segment, brush_type, stroke_density)
         
-        print(f"[INDIVIDUAL SUCCESS] Generated {len(brush_strokes)} {brush_type} strokes for individual segment {segment_id}")
+        print(f"[INDIVIDUAL SUCCESS] Generated {len(hatching_strokes)} hatching strokes for individual segment {segment_id}")
+        print(f"[INDIVIDUAL SUCCESS] Target segment color: {target_segment.get('average_color', 'NO_COLOR')}")
         
-        return brush_strokes
+        return hatching_strokes
+    
+    def _create_individual_segment_fill(self, mask, segment_info, segment_id):
+        """
+        Create fill data for individual segment - returns pixel coordinates and color for solid fill
+        Instead of strokes, this fills the entire segment with its average color
+        
+        Args:
+            mask: Boolean mask of the segment pixels
+            segment_info: Segment information including average color
+            segment_id: ID of the segment
+            
+        Returns:
+            List with single fill object containing all segment pixels and color
+        """
+        # Get all pixel coordinates where mask is True
+        y_coords, x_coords = np.where(mask)
+        
+        if len(x_coords) == 0:
+            return []
+        
+        # Get segment color
+        avg_color = segment_info.get('average_color', {'r': 128, 'g': 128, 'b': 128})
+        color = f"rgb({avg_color['r']}, {avg_color['g']}, {avg_color['b']})"
+        
+        # Create fill data - single object with all pixels
+        fill_data = [{
+            'type': 'fill',  # Mark as fill instead of stroke
+            'segment_id': segment_id,
+            'color': color,
+            'pixels': [[int(x), int(y)] for x, y in zip(x_coords, y_coords)],
+            'pixel_count': len(x_coords),
+            'bounds': {
+                'min_x': int(np.min(x_coords)),
+                'max_x': int(np.max(x_coords)),
+                'min_y': int(np.min(y_coords)),
+                'max_y': int(np.max(y_coords))
+            }
+        }]
+        
+        return fill_data
+    
+    def _create_individual_segment_hatching(self, mask, segment_info, brush_type='pencil', stroke_density=1.0):
+        """
+        Create hatching strokes for individual segments - specialized algorithm for consistent visibility
+        This ensures all individual segments have visible strokes regardless of size
+        
+        Args:
+            mask: Boolean mask of the segment pixels
+            segment_info: Segment information including average color
+            brush_type: Type of brush ('pencil' or 'brush')
+            stroke_density: Density multiplier for stroke count
+            
+        Returns:
+            List of hatching stroke data for frontend rendering
+        """
+        # Get segment boundaries
+        y_coords, x_coords = np.where(mask)
+        
+        if len(x_coords) == 0:
+            return []
+        
+        # Calculate bounding box
+        min_x, max_x = int(np.min(x_coords)), int(np.max(x_coords))
+        min_y, max_y = int(np.min(y_coords)), int(np.max(y_coords))
+        width = max_x - min_x + 1
+        height = max_y - min_y + 1
+        
+        # Analyze segment shape to determine optimal hatching angle
+        import math
+        import random
+        
+        segment_area = np.sum(mask)
+        aspect_ratio = width / height if height > 0 else 1.0
+        
+        # Calculate primary hatching angle based on segment orientation
+        if aspect_ratio > 1.5:  # Wide segment - vertical hatching
+            primary_angle = 90 + random.uniform(-15, 15)  # Add natural variation
+        elif aspect_ratio < 0.67:  # Tall segment - horizontal hatching  
+            primary_angle = 0 + random.uniform(-15, 15)
+        else:  # Square-ish segment - diagonal hatching
+            primary_angle = 45 + random.uniform(-20, 20)
+        
+        # Get segment color and calculate brightness for density
+        avg_color = segment_info.get('average_color', {'r': 128, 'g': 128, 'b': 128})
+        brightness = (avg_color['r'] * 0.299 + avg_color['g'] * 0.587 + avg_color['b'] * 0.114) / 255.0
+        
+        # Darker segments need denser hatching
+        density_factor = 1.0 - brightness  # 0 for white, 1 for black
+        
+        # Calculate adaptive spacing based on segment size and density
+        base_spacing = max(2, int(math.sqrt(segment_area) / 8))
+        spacing = max(1, int(base_spacing / (stroke_density * (0.5 + density_factor))))
+        
+        # Determine hatching patterns based on density
+        patterns = []
+        if density_factor > 0.7:  # Very dark - cross hatching
+            patterns = [primary_angle, primary_angle + 90, primary_angle + 45]
+        elif density_factor > 0.4:  # Medium dark - double hatching
+            patterns = [primary_angle, primary_angle + 60]
+        else:  # Light - single hatching
+            patterns = [primary_angle]
+        
+        # Generate color with slight variations for realism
+        base_color = f"rgb({avg_color['r']}, {avg_color['g']}, {avg_color['b']})"
+        
+        strokes = []
+        
+        # Generate realistic hatching strokes for each pattern
+        for i, angle in enumerate(patterns):
+            # Vary spacing slightly for each layer
+            layer_spacing = spacing + i
+            
+            # Generate strokes for this angle
+            angle_strokes = self._generate_realistic_hatching_strokes(
+                mask, min_x, min_y, max_x, max_y, 
+                angle, layer_spacing, base_color, brush_type, 
+                density_factor, segment_area
+            )
+            strokes.extend(angle_strokes)
+        
+        return strokes
+    
+    def _generate_realistic_hatching_strokes(self, mask, min_x, min_y, max_x, max_y, angle, spacing, color, brush_type, density_factor, segment_area):
+        """
+        Generate realistic pencil-like hatching strokes at specified angle
+        
+        Args:
+            mask: Boolean mask of the segment
+            min_x, min_y, max_x, max_y: Bounding box coordinates
+            angle: Hatching angle in degrees
+            spacing: Distance between strokes
+            color: Base color for strokes
+            brush_type: Type of brush
+            density_factor: 0-1, how dense the hatching should be
+            segment_area: Total area of segment for calculations
+        """
+        import math
+        import random
+        
+        strokes = []
+        
+        # Convert angle to radians
+        angle_rad = math.radians(angle)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        
+        # Calculate stroke direction vector
+        dx = cos_a
+        dy = sin_a
+        
+        # Calculate perpendicular vector for spacing
+        perp_dx = -sin_a
+        perp_dy = cos_a
+        
+        # Determine stroke length based on segment size
+        max_stroke_length = min(max_x - min_x, max_y - min_y) + 20  # Add some extra length
+        
+        # Calculate number of parallel lines needed
+        diagonal_length = math.sqrt((max_x - min_x)**2 + (max_y - min_y)**2)
+        num_lines = int(diagonal_length / spacing) + 2
+        
+        # Generate parallel hatching lines
+        for i in range(-num_lines//2, num_lines//2 + 1):
+            # Calculate starting point for this parallel line
+            offset = i * spacing
+            
+            # Start from center and move perpendicular to stroke direction
+            center_x = (min_x + max_x) / 2
+            center_y = (min_y + max_y) / 2
+            
+            start_x = center_x + offset * perp_dx
+            start_y = center_y + offset * perp_dy
+            
+            # Move back along stroke direction to ensure we cover the segment
+            start_x -= max_stroke_length * dx / 2
+            start_y -= max_stroke_length * dy / 2
+            
+            # Generate points along this line
+            line_points = []
+            current_x = start_x
+            current_y = start_y
+            
+            # Step along the line and check if points are in the segment
+            step_size = 0.5  # Small steps for smooth lines
+            steps = int(max_stroke_length / step_size)
+            
+            in_segment = False
+            stroke_started = False
+            
+            for step in range(steps):
+                x = int(round(current_x))
+                y = int(round(current_y))
+                
+                # Check if point is within bounds and in segment
+                if (min_x <= x <= max_x and min_y <= y <= max_y and 
+                    y < mask.shape[0] and x < mask.shape[1] and mask[y, x]):
+                    
+                    if not stroke_started:
+                        # Start new stroke segment
+                        line_points = []
+                        stroke_started = True
+                    
+                    # Add natural variation to stroke
+                    variation_x = random.uniform(-0.3, 0.3)
+                    variation_y = random.uniform(-0.3, 0.3)
+                    
+                    line_points.append({
+                        'x': x + variation_x, 
+                        'y': y + variation_y
+                    })
+                    in_segment = True
+                    
+                elif stroke_started and len(line_points) >= 2:
+                    # End of stroke segment - create stroke
+                    stroke_width = self._calculate_stroke_width(brush_type, density_factor, len(line_points))
+                    stroke_color = self._vary_stroke_color(color, density_factor)
+                    
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': stroke_color,
+                        'points': line_points.copy(),
+                        'width': stroke_width
+                    })
+                    
+                    stroke_started = False
+                    line_points = []
+                
+                # Move to next point
+                current_x += dx * step_size
+                current_y += dy * step_size
+            
+            # Handle final stroke segment if it exists
+            if stroke_started and len(line_points) >= 2:
+                stroke_width = self._calculate_stroke_width(brush_type, density_factor, len(line_points))
+                stroke_color = self._vary_stroke_color(color, density_factor)
+                
+                strokes.append({
+                    'type': 'stroke',
+                    'brush_type': brush_type,
+                    'color': stroke_color,
+                    'points': line_points,
+                    'width': stroke_width
+                })
+        
+        return strokes
+    
+    def _calculate_stroke_width(self, brush_type, density_factor, stroke_length):
+        """Calculate realistic stroke width based on pressure simulation"""
+        import random
+        
+        # Base width depends on brush type
+        base_width = 2 if brush_type == 'brush' else 1
+        
+        # Vary width based on density (pressure simulation)
+        pressure_factor = 0.7 + density_factor * 0.6  # 0.7 to 1.3
+        
+        # Add length-based variation (longer strokes tend to vary more)
+        length_factor = min(1.2, 1.0 + stroke_length / 100.0)
+        
+        # Add random variation for natural look
+        random_factor = random.uniform(0.8, 1.2)
+        
+        final_width = base_width * pressure_factor * length_factor * random_factor
+        return max(0.5, min(4.0, final_width))  # Clamp between 0.5 and 4.0
+    
+    def _vary_stroke_color(self, base_color, density_factor):
+        """Add slight color variations for realistic pencil texture"""
+        import random
+        import re
+        
+        # Extract RGB values from color string
+        rgb_match = re.match(r'rgb\((\d+),\s*(\d+),\s*(\d+)\)', base_color)
+        if not rgb_match:
+            return base_color
+        
+        r, g, b = map(int, rgb_match.groups())
+        
+        # Add slight variations (darker for denser areas)
+        variation = int(10 * density_factor)  # More variation for denser areas
+        
+        r = max(0, min(255, r + random.randint(-variation, variation//2)))
+        g = max(0, min(255, g + random.randint(-variation, variation//2)))
+        b = max(0, min(255, b + random.randint(-variation, variation//2)))
+        
+        return f"rgb({r}, {g}, {b})"
+    
+    def _generate_hatching_pattern(self, mask, min_x, min_y, max_x, max_y, pattern, spacing, color, brush_type):
+        """Generate specific hatching pattern within segment boundaries"""
+        strokes = []
+        
+        if pattern == 'horizontal':
+            # Horizontal lines
+            for y in range(min_y, max_y + 1, spacing):
+                line_points = []
+                for x in range(min_x, max_x + 1):
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+        
+        elif pattern == 'vertical':
+            # Vertical lines
+            for x in range(min_x, max_x + 1, spacing):
+                line_points = []
+                for y in range(min_y, max_y + 1):
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+        
+        elif pattern == 'diagonal1':
+            # Diagonal lines (top-left to bottom-right)
+            width = max_x - min_x + 1
+            height = max_y - min_y + 1
+            
+            # Lines starting from top edge
+            for start_x in range(min_x, max_x + 1, spacing):
+                line_points = []
+                x, y = start_x, min_y
+                while x <= max_x and y <= max_y:
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                    x += 1
+                    y += 1
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+            
+            # Lines starting from left edge (excluding corner)
+            for start_y in range(min_y + spacing, max_y + 1, spacing):
+                line_points = []
+                x, y = min_x, start_y
+                while x <= max_x and y <= max_y:
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                    x += 1
+                    y += 1
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+        
+        elif pattern == 'diagonal2':
+            # Diagonal lines (top-right to bottom-left)
+            # Lines starting from top edge
+            for start_x in range(max_x, min_x - 1, -spacing):
+                line_points = []
+                x, y = start_x, min_y
+                while x >= min_x and y <= max_y:
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                    x -= 1
+                    y += 1
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+            
+            # Lines starting from right edge (excluding corner)
+            for start_y in range(min_y + spacing, max_y + 1, spacing):
+                line_points = []
+                x, y = max_x, start_y
+                while x >= min_x and y <= max_y:
+                    if y < mask.shape[0] and x < mask.shape[1] and mask[y, x]:
+                        line_points.append({'x': x, 'y': y})
+                    x -= 1
+                    y += 1
+                
+                if len(line_points) >= 2:
+                    strokes.append({
+                        'type': 'stroke',
+                        'brush_type': brush_type,
+                        'color': color,
+                        'points': line_points,
+                        'width': 1 if brush_type == 'pencil' else 2
+                    })
+        
+        return strokes
     
     def _analyze_individual_segment_and_create_strokes(self, mask, segment_info, brush_type, stroke_density):
         """

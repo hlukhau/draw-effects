@@ -22,6 +22,12 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['OUTPUT_FOLDER'] = 'outputs'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
+# Global cache for individual segments data
+individual_segments_cache = {}
+
+# Global cache for individual segment masks to avoid repeated segmentation
+individual_segment_masks_cache = {}
+
 # Ensure directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
@@ -269,25 +275,153 @@ def draw_individual_segment():
         if not file_id or segment_id is None:
             return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
         
-        # Generate brush strokes for the individual segment (without color merging)
+        # Generate fill data for the individual segment (without color merging)
         generator = DrawingEffectGenerator()
-        brush_strokes = generator.generate_individual_segment_strokes(
+        fill_data = generator.generate_individual_segment_strokes(
             output_dir=app.config['OUTPUT_FOLDER'],
             file_id=file_id,
             segment_id=segment_id,
             brush_type=brush_type,
+            external_cache=individual_segment_masks_cache,
             stroke_density=stroke_density
         )
         
+        print(f"[INDIVIDUAL API] Generated data for segment {segment_id}: {len(fill_data)} items")
+        if fill_data and len(fill_data) > 0:
+            print(f"[INDIVIDUAL API] First item type: {fill_data[0].get('type', 'unknown')}")
+            print(f"[INDIVIDUAL API] First item keys: {list(fill_data[0].keys())}")
+        
         return jsonify({
             'success': True,
-            'brush_strokes': brush_strokes,
+            'brush_strokes': fill_data,  # Still called brush_strokes for compatibility
             'brush_type': brush_type,
             'mode': 'individual'  # Indicate this is individual segment mode
         })
         
     except Exception as e:
         print(f"Error in draw_individual_segment: {str(e)}")  # Add logging
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/get_individual_segments', methods=['POST'])
+def get_individual_segments():
+    """Get list of individual segments for a file"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        
+        if not file_id:
+            return jsonify({'success': False, 'error': 'Missing file_id'})
+        
+        # Check cache first
+        if file_id in individual_segments_cache:
+            print(f"[CACHE HIT] Using cached individual segments for file_id: {file_id}")
+            cached_data = individual_segments_cache[file_id]
+            return jsonify({
+                'success': True,
+                'segments': cached_data['segments'],
+                'source_file': cached_data['source_file']
+            })
+        
+        print(f"[CACHE MISS] Loading individual segments for file_id: {file_id}")
+        generator = DrawingEffectGenerator()
+        
+        # Load individual segmentation data
+        outputs_dir = app.config['OUTPUT_FOLDER']
+        
+        # Look for individual segmentation files first
+        json_files = [f for f in os.listdir(outputs_dir) 
+                     if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                     and 'individual' in f and 'boundaries' not in f]
+        
+        if not json_files:
+            # Fallback to regular segmentation files if individual not found
+            json_files = [f for f in os.listdir(outputs_dir) 
+                         if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                         and 'boundaries' not in f and 'individual' not in f]
+        
+        if not json_files:
+            return jsonify({'success': False, 'error': 'No segmentation data found'})
+        
+        # Get the newest file
+        json_files_with_time = []
+        for json_file in json_files:
+            file_path = os.path.join(outputs_dir, json_file)
+            mod_time = os.path.getmtime(file_path)
+            json_files_with_time.append((json_file, mod_time))
+        
+        json_files_with_time.sort(key=lambda x: x[1], reverse=True)
+        newest_json_file = json_files_with_time[0][0]
+        
+        json_path = os.path.join(outputs_dir, newest_json_file)
+        
+        with open(json_path, 'r') as f:
+            segment_data = json.load(f)
+        
+        # Extract segments list
+        segments_list = None
+        if isinstance(segment_data, dict):
+            if 'segments' in segment_data:
+                segments_list = segment_data['segments']
+            elif 'segment_data' in segment_data:
+                segments_list = segment_data['segment_data']
+            else:
+                for key in segment_data.keys():
+                    if isinstance(segment_data[key], list):
+                        segments_list = segment_data[key]
+                        break
+        elif isinstance(segment_data, list):
+            segments_list = segment_data
+        
+        if segments_list is None:
+            return jsonify({'success': False, 'error': 'Could not find segments in data'})
+        
+        print(f"[GET_INDIVIDUAL_SEGMENTS] Loaded {len(segments_list)} segments from {newest_json_file}")
+        
+        # Cache the result for future requests
+        individual_segments_cache[file_id] = {
+            'segments': segments_list,
+            'source_file': newest_json_file
+        }
+        print(f"[CACHE STORE] Cached individual segments for file_id: {file_id}")
+        
+        return jsonify({
+            'success': True,
+            'segments': segments_list,
+            'source_file': newest_json_file
+        })
+        
+    except Exception as e:
+        print(f"Error in get_individual_segments: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/clear_individual_segments_cache', methods=['POST'])
+def clear_individual_segments_cache():
+    """Clear the individual segments cache"""
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        
+        if file_id and file_id in individual_segments_cache:
+            del individual_segments_cache[file_id]
+            # Also clear the masks cache
+            if file_id in individual_segment_masks_cache:
+                del individual_segment_masks_cache[file_id]
+            print(f"[CACHE CLEAR] Cleared individual segments cache for file_id: {file_id}")
+            return jsonify({'success': True, 'message': f'Cache cleared for file_id: {file_id}'})
+        elif file_id:
+            print(f"[CACHE CLEAR] No cache found for file_id: {file_id}")
+            return jsonify({'success': True, 'message': f'No cache found for file_id: {file_id}'})
+        else:
+            # Clear all cache if no file_id specified
+            cache_count = len(individual_segments_cache)
+            masks_cache_count = len(individual_segment_masks_cache)
+            individual_segments_cache.clear()
+            individual_segment_masks_cache.clear()
+            print(f"[CACHE CLEAR] Cleared all individual segments cache ({cache_count} entries) and masks cache ({masks_cache_count} entries)")
+            return jsonify({'success': True, 'message': f'Cleared all cache ({cache_count + masks_cache_count} entries)'})
+            
+    except Exception as e:
+        print(f"Error in clear_individual_segments_cache: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/detect_boundaries', methods=['POST'])
