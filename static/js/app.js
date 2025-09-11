@@ -1040,6 +1040,9 @@ function showSegmentationResults(fileId) {
                                     <button id="drawIndividualBtn" class="btn btn-secondary btn-sm mr-2" onclick="drawIndividualSegments()">
                                         <i class="fas fa-th"></i> Individual Segments
                                     </button>
+                                    <button id="drawIndividualSmallBtn" class="btn btn-warning btn-sm mr-2">
+                                        <i class="fas fa-th-small"></i> Individual Small Segments
+                                    </button>
                                     <button id="highlightBoundariesBtn" class="btn btn-outline-primary btn-sm mr-2">
                                         <i class="fas fa-highlighter"></i> Highlight Boundaries
                                     </button>
@@ -1432,14 +1435,17 @@ function initializeInteractiveCanvas(fileId) {
     document.getElementById('clearCanvasBtn').addEventListener('click', clearCanvas);
     document.getElementById('clearVideosBtn').addEventListener('click', clearVideoResults);
     document.getElementById('generateVideoBtn').addEventListener('click', generateVideoFromFrames);
+
+    // Event listeners for Individual Segments buttons
+    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+    if (drawIndividualBtn) {
+        drawIndividualBtn.addEventListener('click', drawIndividualSegments);
+    }
     
-    // Event listener for Individual Segments button
-    document.addEventListener('DOMContentLoaded', function() {
-        const drawIndividualBtn = document.getElementById('drawIndividualBtn');
-        if (drawIndividualBtn) {
-            drawIndividualBtn.addEventListener('click', drawIndividualSegments);
-        }
-    });
+    const drawIndividualSmallBtn = document.getElementById('drawIndividualSmallBtn');
+    if (drawIndividualSmallBtn) {
+        drawIndividualSmallBtn.addEventListener('click', drawIndividualSmallSegments);
+    }
 
     // Initialize brush type selector
     const brushSelector = document.getElementById('brushTypeSelect');
@@ -1615,6 +1621,7 @@ function stopDrawingAll() {
     const drawMediumBtn = document.getElementById('drawMediumBtn');
     const drawSmallBtn = document.getElementById('drawSmallBtn');
     const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+    const drawIndividualSmallBtn = document.getElementById('drawIndividualSmallBtn');
     const highlightBtn = document.getElementById('highlightBoundariesBtn');
     const progressDiv = document.getElementById('drawingProgress');
     
@@ -1643,6 +1650,11 @@ function stopDrawingAll() {
         drawIndividualBtn.disabled = false;
         drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
         drawIndividualBtn.style.display = 'inline-block';
+    }
+    if (drawIndividualSmallBtn) {
+        drawIndividualSmallBtn.disabled = false;
+        drawIndividualSmallBtn.innerHTML = '<i class="fas fa-th-small"></i> Individual Small Segments';
+        drawIndividualSmallBtn.style.display = 'inline-block';
     }
     if (highlightBtn) {
         highlightBtn.disabled = false;
@@ -1989,6 +2001,477 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
     if (canvasData.imageScaling) {
         ctx.restore()
     }
+}
+
+function applyFragmentData(fragmentData, segmentId) {
+    /**
+     * Apply original image fragment data to canvas
+     * Renders original pixels with their actual colors from the source image
+     * Uses direct pixel manipulation to avoid subpixel artifacts and ensure perfect segment alignment
+     */
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+
+    console.log(`🖼️ Applying fragment data for segment ${segmentId} with ${fragmentData.length} fragment(s)`);
+
+    // Apply scaling if available
+    let scaledCoords = false;
+    if (canvasData.imageScaling) {
+        const { scale, offsetX, offsetY } = canvasData.imageScaling;
+        console.log('Scaling will be applied to fragment coordinates - scale:', scale, 'offsetX:', offsetX, 'offsetY:', offsetY);
+        scaledCoords = { scale, offsetX, offsetY };
+    } else {
+        console.log('No scaling applied to fragment - drawing at original coordinates');
+    }
+
+    fragmentData.forEach((fragment, fragmentIndex) => {
+        if (fragment.type === 'fragment' && fragment.pixels) {
+            console.log(`🖼️ Processing fragment ${fragmentIndex + 1}/${fragmentData.length} with ${fragment.pixels.length} pixels`);
+            
+            // Create a temporary canvas for this fragment to avoid grid artifacts
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Find bounding box of the fragment
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            fragment.pixels.forEach(pixel => {
+                let x = pixel.x;
+                let y = pixel.y;
+                
+                // Apply scaling if needed
+                if (scaledCoords) {
+                    x = Math.round(x * scaledCoords.scale + scaledCoords.offsetX);
+                    y = Math.round(y * scaledCoords.scale + scaledCoords.offsetY);
+                }
+                
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x);
+                maxY = Math.max(maxY, y);
+            });
+            
+            // Set temp canvas size to bounding box
+            const width = maxX - minX + 1;
+            const height = maxY - minY + 1;
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            
+            // Create ImageData for the temp canvas
+            const imageData = tempCtx.createImageData(width, height);
+            const data = imageData.data;
+            
+            // Draw pixels to temp canvas ImageData
+            fragment.pixels.forEach((pixel, pixelIndex) => {
+                let x = pixel.x;
+                let y = pixel.y;
+                
+                // Apply scaling if needed
+                if (scaledCoords) {
+                    x = Math.round(x * scaledCoords.scale + scaledCoords.offsetX);
+                    y = Math.round(y * scaledCoords.scale + scaledCoords.offsetY);
+                }
+                
+                // Convert to temp canvas coordinates
+                const tempX = x - minX;
+                const tempY = y - minY;
+                
+                if (tempX >= 0 && tempX < width && tempY >= 0 && tempY < height) {
+                    const index = (tempY * width + tempX) * 4;
+                    
+                    // Parse RGB color
+                    const colorMatch = pixel.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (colorMatch) {
+                        data[index] = parseInt(colorMatch[1]);     // Red
+                        data[index + 1] = parseInt(colorMatch[2]); // Green
+                        data[index + 2] = parseInt(colorMatch[3]); // Blue
+                        data[index + 3] = 255;                    // Alpha
+                    }
+                }
+                
+                // Log progress for large fragments
+                if (fragment.pixels.length > 1000 && pixelIndex % 500 === 0) {
+                    console.log(`🖼️ Fragment progress: ${pixelIndex}/${fragment.pixels.length} pixels processed`);
+                }
+            });
+            
+            // Put ImageData to temp canvas
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            // Draw temp canvas to main canvas in one operation
+            ctx.drawImage(tempCanvas, minX, minY);
+            
+            console.log(`✅ Fragment ${fragmentIndex + 1} completed: ${fragment.pixels.length} pixels drawn directly to canvas`);
+        } else {
+            console.warn(`⚠️ Skipping non-fragment data:`, fragment);
+        }
+    });
+    
+    console.log(`✅ Fragment rendering completed for segment ${segmentId} - pixels drawn with perfect alignment`);
+}
+
+function applyAllFragmentsData(allFragmentsData) {
+    /**
+     * Apply all fragment data to canvas in one batch operation
+     * This eliminates white grid artifacts by using a single putImageData call
+     * instead of multiple calls for each segment
+     */
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    console.log(`🖼️ Applying batch fragment data for ${allFragmentsData.length} segments`);
+    
+    // Get canvas dimensions
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
+    // Create one ImageData for the entire canvas
+    const canvasImageData = ctx.createImageData(canvasWidth, canvasHeight);
+    const canvasData = canvasImageData.data;
+    
+    // Initialize with transparent pixels
+    for (let i = 0; i < canvasData.length; i += 4) {
+        canvasData[i + 3] = 0; // Alpha = 0 (transparent)
+    }
+    
+    // Apply scaling if available (use global canvasData, not local canvasData variable)
+    let scaledCoords = false;
+    if (window.canvasData && window.canvasData.imageScaling) {
+        const { scale, offsetX, offsetY } = window.canvasData.imageScaling;
+        console.log('Scaling will be applied to batch fragments - scale:', scale, 'offsetX:', offsetX, 'offsetY:', offsetY);
+        scaledCoords = { scale, offsetX, offsetY };
+    }
+    
+    let totalPixels = 0;
+    
+    // Process all fragments from all segments
+    allFragmentsData.forEach((segmentFragments, segmentIndex) => {
+        segmentFragments.forEach((fragment, fragmentIndex) => {
+            if (fragment.type === 'fragment' && fragment.pixels) {
+                console.log(`🖼️ Processing segment ${segmentIndex + 1} fragment ${fragmentIndex + 1} with ${fragment.pixels.length} pixels`);
+                
+                // Draw each pixel directly to the canvas ImageData
+                fragment.pixels.forEach((pixel) => {
+                    let x = pixel.x;
+                    let y = pixel.y;
+                    
+                    // Apply scaling if needed
+                    if (scaledCoords) {
+                        x = Math.round(x * scaledCoords.scale + scaledCoords.offsetX);
+                        y = Math.round(y * scaledCoords.scale + scaledCoords.offsetY);
+                    }
+                    
+                    // Ensure pixel is within canvas bounds
+                    if (x >= 0 && x < canvasWidth && y >= 0 && y < canvasHeight) {
+                        const index = (y * canvasWidth + x) * 4;
+                        
+                        // Parse RGB color
+                        const colorMatch = pixel.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                        if (colorMatch) {
+                            canvasData[index] = parseInt(colorMatch[1]);     // Red
+                            canvasData[index + 1] = parseInt(colorMatch[2]); // Green
+                            canvasData[index + 2] = parseInt(colorMatch[3]); // Blue
+                            canvasData[index + 3] = 255;                    // Alpha (opaque)
+                            totalPixels++;
+                        }
+                    }
+                });
+            }
+        });
+    });
+    
+    // Apply all pixels to canvas with a single putImageData call
+    ctx.putImageData(canvasImageData, 0, 0);
+    
+    console.log(`✅ Batch fragment rendering completed: ${totalPixels} pixels drawn with NO GRID ARTIFACTS`);
+}
+
+function drawIndividualSegmentsAnimated(segments) {
+    /**
+     * Draw individual segments with animation but without grid artifacts
+     * Uses single ImageData accumulation with progressive updates to show animation
+     * while avoiding multiple putImageData calls that cause vertical/horizontal lines
+     */
+    console.log(`🎬 Starting animated individual segments for ${segments.length} segments`);
+    
+    const canvas = document.getElementById('drawingCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let processedSegments = 0;
+    
+    // Process segments sequentially with animation
+    function processNextSegment(index) {
+        if (index >= segments.length) {
+            // All segments processed - apply final result to canvas
+            resetDrawingUI();
+            showAlert(`Completed drawing ${segments.length} individual segments with animation!`, 'success');
+            return;
+        }
+        
+        const segment = segments[index];
+        updateDrawingProgress(index, segments.length);
+        
+        console.log(`🎨 Processing segment ${index + 1}/${segments.length}: ID ${segment.id}`);
+        
+        // Load fragment data for this segment
+        fetch('/draw_individual_segment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_id: currentFileId,
+                segment_id: segment.id
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.fragment_data) {
+                // Add fragment to canvas using fill operations
+                addFragmentToCanvas(data.fragment_data, canvas, ctx);
+                
+                processedSegments++;
+                console.log(`✅ Segment ${segment.id} added to canvas (${processedSegments}/${segments.length})`);
+                
+                // Continue to next segment with small delay for animation
+                setTimeout(() => processNextSegment(index + 1), 100);
+            } else {
+                console.error(`❌ Failed to load segment ${segment.id}:`, data.error);
+                // Continue to next segment even if this one failed
+                setTimeout(() => processNextSegment(index + 1), 50);
+            }
+        })
+        .catch(error => {
+            console.error(`❌ Error loading segment ${segment.id}:`, error);
+            // Continue to next segment even if this one failed
+            setTimeout(() => processNextSegment(index + 1), 50);
+        });
+    }
+    
+    // Start processing from first segment
+    processNextSegment(0);
+}
+
+function addFragmentToCanvas(fragmentData, canvas, ctx) {
+    /**
+     * Add fragment using temporary canvas without scaling, then scale via drawImage
+     * This completely avoids scaling artifacts by doing scaling in one operation
+     */
+    fragmentData.forEach(fragment => {
+        if (fragment.type === 'fragment' && fragment.pixels && fragment.pixels.length > 0) {
+            // Get the color for this fragment
+            const firstPixel = fragment.pixels[0];
+            const colorMatch = firstPixel.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (!colorMatch) return;
+            
+            // Find original image dimensions from first and last pixels
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            fragment.pixels.forEach(pixel => {
+                minX = Math.min(minX, pixel.x);
+                minY = Math.min(minY, pixel.y);
+                maxX = Math.max(maxX, pixel.x);
+                maxY = Math.max(maxY, pixel.y);
+            });
+            
+            // Create temporary canvas at original size (no scaling)
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            const width = maxX - minX + 1;
+            const height = maxY - minY + 1;
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            
+            // Fill temp canvas with fragment color at original coordinates
+            tempCtx.fillStyle = firstPixel.color;
+            
+            // Group pixels by rows for efficient filling
+            const pixelsByRow = new Map();
+            fragment.pixels.forEach(pixel => {
+                const y = pixel.y - minY; // Relative to temp canvas
+                if (!pixelsByRow.has(y)) {
+                    pixelsByRow.set(y, []);
+                }
+                pixelsByRow.get(y).push(pixel.x - minX); // Relative to temp canvas
+            });
+            
+            // Fill each row as rectangles in temp canvas
+            pixelsByRow.forEach((xCoords, y) => {
+                xCoords.sort((a, b) => a - b);
+                
+                let startX = xCoords[0];
+                let endX = xCoords[0];
+                
+                for (let i = 1; i < xCoords.length; i++) {
+                    if (xCoords[i] === endX + 1) {
+                        endX = xCoords[i];
+                    } else {
+                        tempCtx.fillRect(startX, y, endX - startX + 1, 1);
+                        startX = xCoords[i];
+                        endX = xCoords[i];
+                    }
+                }
+                tempCtx.fillRect(startX, y, endX - startX + 1, 1);
+            });
+            
+            // Now draw temp canvas to main canvas with scaling
+            const imageScaling = window.canvasData?.imageScaling || canvasData?.imageScaling;
+            if (imageScaling) {
+                const { scale, offsetX, offsetY } = imageScaling;
+                
+                // Calculate scaled position and size
+                const scaledX = minX * scale + offsetX;
+                const scaledY = minY * scale + offsetY;
+                const scaledWidth = width * scale;
+                const scaledHeight = height * scale;
+                
+                ctx.drawImage(tempCanvas, scaledX, scaledY, scaledWidth, scaledHeight);
+            } else {
+                // No scaling - draw at original position
+                ctx.drawImage(tempCanvas, minX, minY);
+            }
+        }
+    });
+}
+
+function drawAllIndividualSegmentsBatch(segments) {
+    /**
+     * Draw all individual segments using batch processing to eliminate white grid artifacts
+     * This function collects all fragment data from all segments and renders them in one operation
+     */
+    console.log(`🚀 Starting batch processing for ${segments.length} individual segments`);
+    
+    const allFragmentsData = [];
+    let processedSegments = 0;
+    let hasErrors = false;
+    
+    // Function to process each segment and collect fragment data
+    function processSegment(segmentIndex) {
+        if (segmentIndex >= segments.length) {
+            // All segments processed, now render all fragments at once
+            if (!hasErrors && allFragmentsData.length > 0) {
+                console.log(`🎨 Rendering all ${allFragmentsData.length} segments with batch processing`);
+                applyAllFragmentsData(allFragmentsData);
+                showAlert(`Completed drawing ${segments.length} individual segments with perfect alignment!`, 'success');
+            } else if (hasErrors) {
+                showAlert('Some segments failed to load. Please try again.', 'warning');
+            } else {
+                showAlert('No fragment data found. Please check segmentation.', 'warning');
+            }
+            
+            // Reset UI state
+            resetDrawingUI();
+            return;
+        }
+        
+        const segment = segments[segmentIndex];
+        const segmentId = segment.id;
+        
+        // Update progress
+        updateDrawingProgress(segmentIndex + 1, segments.length);
+        
+        // Update current segment info
+        const currentSegmentSpan = document.getElementById('currentDrawingSegment');
+        if (currentSegmentSpan) {
+            currentSegmentSpan.textContent = `Loading Individual Segment ${segmentId} (${segmentIndex + 1}/${segments.length})`;
+        }
+        
+        console.log(`📦 Loading fragment data for segment ${segmentId} (${segmentIndex + 1}/${segments.length})`);
+        
+        // Request fragment data for this segment
+        fetch('/draw_individual_segment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_id: currentFileId,
+                segment_id: segmentId,
+                brush_type: 'fragment', // Always use fragment mode
+                stroke_density: 1.0
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.brush_strokes && data.brush_strokes.length > 0 && data.brush_strokes[0].type === 'fragment') {
+                // Add fragment data to collection
+                allFragmentsData.push(data.brush_strokes);
+                console.log(`✅ Loaded fragment data for segment ${segmentId}: ${data.brush_strokes[0].pixels ? data.brush_strokes[0].pixels.length : 0} pixels`);
+            } else {
+                console.error(`❌ Failed to load fragment data for segment ${segmentId}:`, data.error || 'No fragment data');
+                hasErrors = true;
+            }
+            
+            processedSegments++;
+            
+            // Process next segment with a small delay to avoid overwhelming the server
+            setTimeout(() => {
+                processSegment(segmentIndex + 1);
+            }, 10);
+        })
+        .catch(error => {
+            console.error(`❌ Error loading segment ${segmentId}:`, error);
+            hasErrors = true;
+            processedSegments++;
+            
+            // Continue with next segment
+            setTimeout(() => {
+                processSegment(segmentIndex + 1);
+            }, 10);
+        });
+    }
+    
+    // Start processing segments
+    processSegment(0);
+}
+
+function resetDrawingUI() {
+    /**
+     * Reset drawing UI to initial state after completion
+     */
+    const progressDiv = document.getElementById('drawingProgress');
+    const drawAllBtn = document.getElementById('drawAllBtn');
+    const drawLargeBtn = document.getElementById('drawLargeBtn');
+    const drawMediumBtn = document.getElementById('drawMediumBtn');
+    const drawSmallBtn = document.getElementById('drawSmallBtn');
+    const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+    const stopBtn = document.getElementById('stopDrawingBtn');
+    
+    if (progressDiv) progressDiv.style.display = 'none';
+    if (drawAllBtn) {
+        drawAllBtn.disabled = false;
+        drawAllBtn.innerHTML = '<i class="fas fa-palette"></i> Draw All';
+        drawAllBtn.style.display = 'inline-block';
+    }
+    if (drawLargeBtn) {
+        drawLargeBtn.disabled = false;
+        drawLargeBtn.style.display = 'inline-block';
+    }
+    if (drawMediumBtn) {
+        drawMediumBtn.disabled = false;
+        drawMediumBtn.style.display = 'inline-block';
+    }
+    if (drawSmallBtn) {
+        drawSmallBtn.disabled = false;
+        drawSmallBtn.style.display = 'inline-block';
+    }
+    if (drawIndividualBtn) {
+        drawIndividualBtn.disabled = false;
+        drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
+        drawIndividualBtn.style.display = 'inline-block';
+    }
+    if (stopBtn) stopBtn.style.display = 'none';
+    
+    // Reset drawing state
+    canvasData.isDrawingAll = false;
+    canvasData.drawingInterrupted = false;
+    
+    // Stop drawing timer
+    stopDrawingTimer();
+    
+    // Reset progress bars
+    setTimeout(() => {
+        resetProgressBars();
+    }, 1000);
+    
+    // Clear individual segments cache
+    clearIndividualSegmentsCache();
 }
 
 function applyBrushStrokesWithVideoCapture(brushStrokes, segmentId) {
@@ -3430,6 +3913,147 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
     drawNextSegment();
 }
 
+function drawIndividualSmallSegments() {
+    console.log('🎨 drawIndividualSmallSegments called - filtering segments < 200 pixels');
+    
+    // Individual Small Segments works like Individual Segments but filters by size
+    if (!currentFileId) {
+        showAlert('No file selected', 'danger');
+        return;
+    }
+    
+    console.log('🔍 Getting individual segments list from backend for small segments filtering...');
+    
+    // Get individual segments list from backend
+    fetch('/get_individual_segments', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            file_id: currentFileId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.segments && data.segments.length > 0) {
+            console.log('✅ Got individual segments from backend:', data.segments.length);
+            
+            // Sort segments by pixel_count (ascending - smallest first)
+            const sortedSegmentsForSmall = data.segments.sort((a, b) => a.pixel_count - b.pixel_count);
+
+            // Take 25% smallest segments (at least 1 segment)
+            const smallSegmentCount = Math.max(1, Math.floor(data.segments.length * 0.5));
+            const smallSegments = sortedSegmentsForSmall.slice(0, smallSegmentCount);
+
+            console.log(`🔍 Selected ${smallSegments.length} smallest segments (25% of ${data.segments.length} total segments)`);
+            console.log(`📊 Size range: ${smallSegments[0].pixel_count} - ${smallSegments[smallSegments.length-1].pixel_count} pixels`);
+
+            if (smallSegments.length === 0) {
+                showAlert('No small segments found (< 200 pixels). Try adjusting the segmentation parameters.', 'warning');
+                return;
+            }
+            
+            const segments = smallSegments;
+        
+        // Show drawing progress and manage buttons (same as other drawing functions)
+        const progressDiv = document.getElementById('drawingProgress');
+        const drawAllBtn = document.getElementById('drawAllBtn');
+        const drawLargeBtn = document.getElementById('drawLargeBtn');
+        const drawMediumBtn = document.getElementById('drawMediumBtn');
+        const drawSmallBtn = document.getElementById('drawSmallBtn');
+        const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        const drawIndividualSmallBtn = document.getElementById('drawIndividualSmallBtn');
+        const stopBtn = document.getElementById('stopDrawingBtn');
+        
+        if (progressDiv) progressDiv.style.display = 'block';
+        if (drawAllBtn) {
+            drawAllBtn.disabled = true;
+            drawAllBtn.style.display = 'none';
+        }
+        if (drawLargeBtn) {
+            drawLargeBtn.disabled = true;
+            drawLargeBtn.style.display = 'none';
+        }
+        if (drawMediumBtn) {
+            drawMediumBtn.disabled = true;
+            drawMediumBtn.style.display = 'none';
+        }
+        if (drawSmallBtn) {
+            drawSmallBtn.disabled = true;
+            drawSmallBtn.style.display = 'none';
+        }
+        if (drawIndividualBtn) {
+            drawIndividualBtn.disabled = true;
+            drawIndividualBtn.style.display = 'none';
+        }
+        if (drawIndividualSmallBtn) {
+            drawIndividualSmallBtn.disabled = true;
+            drawIndividualSmallBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Drawing Small...';
+            drawIndividualSmallBtn.style.display = 'none';
+        }
+        if (stopBtn) stopBtn.style.display = 'inline-block';
+        
+        // Initialize drawing state
+        canvasData.isDrawingAll = true;
+        canvasData.drawingInterrupted = false;
+        
+        console.log('🔍 Individual Small Segments mode: Using filtered small segments');
+        
+        // Sort segments by pixel count (largest first) for better visual progression
+        const sortedSegments = segments.sort((a, b) => b.pixel_count - a.pixel_count);
+        
+        // Update progress info
+        const currentSegmentSpan = document.getElementById('currentDrawingSegment');
+        const brushTypeSpan = document.getElementById('currentBrushType');
+        if (currentSegmentSpan) currentSegmentSpan.textContent = 'Individual Small Segments';
+        if (brushTypeSpan) brushTypeSpan.textContent = canvasData.currentBrushType || 'Pencil';
+        
+        // Start drawing timer
+        startDrawingTimer();
+        
+        // Initialize progress bars
+        resetProgressBars();
+        updateDrawingProgress(0, sortedSegments.length);
+        
+        // Show progress bars
+        const progressBarsDiv = document.getElementById('canvasProgressBars');
+        if (progressBarsDiv) progressBarsDiv.style.display = 'block';
+        
+        // Безопасное получение значений с fallback
+        const videoDurationSlider = document.getElementById('videoDurationSlider');
+        const videoFpsSlider = document.getElementById('videoFpsSlider');
+
+        const videoDuration = videoDurationSlider ? parseFloat(videoDurationSlider.value) : 10.0; // default 10 seconds
+        const videoFps = videoFpsSlider ? parseInt(videoFpsSlider.value) : 30; // default 30 FPS
+
+        const videoRecorder = new VideoRecorder({
+            videoDuration: videoDuration,
+            segmentCount: sortedSegments.length,
+            canvas: document.getElementById('drawingCanvas'),
+            frameRate: videoFps,
+            timeCompression: true,
+            isCumulative: true
+        });
+        
+        // Store reference and start recording
+        canvasData.videoRecorder = videoRecorder;
+        canvasData.masterVideoRecorder = videoRecorder;
+        videoRecorder.start();
+        
+            // Draw each small segment individually with animation (sequential mode)
+            drawSegmentsSequentially(sortedSegments, 0, 'individual');
+        } else {
+            console.error('Failed to get individual segments:', data.error);
+            showAlert('Failed to load individual segments. Please run segmentation first.', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error getting individual segments:', error);
+        showAlert('Error loading individual segments. Please try again.', 'danger');
+    });
+}
+
 function drawIndividualSegments() {
     console.log('🎨 drawIndividualSegments called');
     
@@ -3519,16 +4143,37 @@ function drawIndividualSegments() {
         const progressBarsDiv = document.getElementById('canvasProgressBars');
         if (progressBarsDiv) progressBarsDiv.style.display = 'block';
         
-            // Draw each segment individually without color merging
+        // Безопасное получение значений с fallback
+        const videoDurationSlider = document.getElementById('videoDurationSlider');
+        const videoFpsSlider = document.getElementById('videoFpsSlider');
+
+        const videoDuration = videoDurationSlider ? parseFloat(videoDurationSlider.value) : 10.0; // default 10 seconds
+        const videoFps = videoFpsSlider ? parseInt(videoFpsSlider.value) : 30; // default 30 FPS
+
+        const videoRecorder = new VideoRecorder({
+            videoDuration: videoDuration,
+            segmentCount: sortedSegments.length,
+            canvas: document.getElementById('drawingCanvas'),
+            frameRate: videoFps,
+            timeCompression: true,
+            isCumulative: true
+        });
+        
+        // Store reference and start recording
+        canvasData.videoRecorder = videoRecorder;
+        canvasData.masterVideoRecorder = videoRecorder;
+        videoRecorder.start();
+        
+            // Draw each segment individually with animation (sequential mode)
             drawSegmentsSequentially(sortedSegments, 0, 'individual');
         } else {
             console.error('Failed to get individual segments:', data.error);
-            showMessage('Failed to load individual segments. Please run segmentation first.', 'danger');
+            showAlert('Failed to load individual segments. Please run segmentation first.', 'danger');
         }
     })
     .catch(error => {
         console.error('Error getting individual segments:', error);
-        showMessage('Error loading individual segments. Please try again.', 'danger');
+        showAlert('Error loading individual segments. Please try again.', 'danger');
     });
 }
 
@@ -3578,6 +4223,7 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
         const drawMediumBtn = document.getElementById('drawMediumBtn');
         const drawSmallBtn = document.getElementById('drawSmallBtn');
         const drawIndividualBtn = document.getElementById('drawIndividualBtn');
+        const drawIndividualSmallBtn = document.getElementById('drawIndividualSmallBtn');
         const stopBtn = document.getElementById('stopDrawingBtn');
         
         if (progressDiv) progressDiv.style.display = 'none';
@@ -3603,6 +4249,11 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
             drawIndividualBtn.innerHTML = '<i class="fas fa-th"></i> Individual Segments';
             drawIndividualBtn.style.display = 'inline-block';
         }
+        if (drawIndividualSmallBtn) {
+            drawIndividualSmallBtn.disabled = false;
+            drawIndividualSmallBtn.innerHTML = '<i class="fas fa-th-small"></i> Individual Small Segments';
+            drawIndividualSmallBtn.style.display = 'inline-block';
+        }
         if (stopBtn) stopBtn.style.display = 'none';
         
         // Reset drawing state
@@ -3611,6 +4262,29 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
         
         // Stop drawing timer
         stopDrawingTimer();
+        
+        // Finalize video recording for Individual Segments
+        if (canvasData.videoRecorder && canvasData.videoRecorder.isRecording) {
+            console.log('🎬 Finalizing video recording for Individual Segments...');
+            canvasData.videoRecorder.captureFrame(); // Final frame
+            const stopResult = canvasData.videoRecorder.stop();
+            
+            // Check if stop() returns a Promise
+            if (stopResult && typeof stopResult.then === 'function') {
+                stopResult.then(() => {
+                    console.log('✅ Video recording completed for Individual Segments');
+                    showAlert('Drawing completed! Click "Generate Video" to create video from captured frames.', 'success');
+                }).catch(error => {
+                    console.error('❌ Error finalizing video:', error);
+                    showAlert('Drawing completed, but video finalization failed.', 'warning');
+                });
+            } else {
+                console.log('✅ Video recording completed for Individual Segments');
+                showAlert('Drawing completed! Click "Generate Video" to create video from captured frames.', 'success');
+            }
+        } else {
+            showAlert(`Completed drawing ${segments.length} individual segments!`, 'success');
+        }
         
         // Reset progress bars
         setTimeout(() => {
@@ -3621,8 +4295,6 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
         if (mode === 'individual') {
             clearIndividualSegmentsCache();
         }
-        
-        showMessage(`Completed drawing ${segments.length} individual segments!`, 'success');
         return;
     }
 
@@ -3672,9 +4344,22 @@ function drawSegmentsSequentially(segments, index, mode = 'normal') {
                 firstItemType: data.brush_strokes && data.brush_strokes.length > 0 ? data.brush_strokes[0].type : 'none'
             });
             
-            // Apply brush strokes to canvas for both normal and individual modes
-            console.log(`[STROKE] Applying brush strokes for segment ${segmentId} (mode: ${mode})`);
-            applyBrushStrokesFast(data.brush_strokes, segmentId);
+            // Check if this is fragment data or regular brush strokes
+            if (data.brush_strokes && data.brush_strokes.length > 0 && data.brush_strokes[0].type === 'fragment') {
+                console.log(`[FRAGMENT] Applying fragment data for segment ${segmentId} without grid artifacts`);
+                const canvas = document.getElementById('drawingCanvas');
+                const ctx = canvas.getContext('2d');
+                addFragmentToCanvas(data.brush_strokes, canvas, ctx);
+                
+                // Capture frame for video recording after drawing fragment
+                if (canvasData.videoRecorder) {
+                    canvasData.videoRecorder.captureFrame();
+                    console.log(`📹 Captured frame for Individual Segment ${segmentId}`);
+                }
+            } else {
+                console.log(`[STROKE] Applying brush strokes for segment ${segmentId} (mode: ${mode})`);
+                applyBrushStrokesFast(data.brush_strokes, segmentId);
+            }
             
             // Use different delays based on mode - Individual Segments can be faster due to caching
             const delay = mode === 'individual' ? 10 : 50; // 10ms for individual (cached), 50ms for normal strokes
@@ -4132,7 +4817,7 @@ class VideoRecorder {
             
             // Log progress occasionally
             if (this.capturedFrames.length % 10 === 0) {
-                console.log(`Captured ${this.capturedFrames.length} frames at ${displayWidth}x${displayHeight}`);
+                console.log(`Captured ${this.capturedFrames.length} frames at ${sourceWidth}x${sourceHeight}`);
             }
         } catch (error) {
             console.error('Error capturing frame:', error);

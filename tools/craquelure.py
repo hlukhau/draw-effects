@@ -8,8 +8,9 @@ import time
 from flask_cors import CORS
 import json
 import uuid
-import random
+import threading
 import math
+import random
 
 app = Flask(__name__)
 CORS(app)
@@ -19,85 +20,7 @@ processing_progress = 0
 preprocessed_data = {}
 current_session_id = None
 
-def generate_craquelure_pattern(width, height, density=0.5, complexity=3):
-    """Генерирует аутентичный кракелюр (трещины) как на старых картинах"""
-    # Создаем прозрачное изображение для трещин
-    crackle_img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(crackle_img)
-
-    # Основные трещины - начинаются от краев
-    main_cracks = []
-    num_main_cracks = int(density * 20) + 10
-
-    for _ in range(num_main_cracks):
-        # Выбираем случайную точку на границе
-        side = random.choice(['top', 'bottom', 'left', 'right'])
-        if side == 'top':
-            start_x = random.randint(0, width - 1)
-            start_y = 0
-        elif side == 'bottom':
-            start_x = random.randint(0, width - 1)
-            start_y = height - 1
-        elif side == 'left':
-            start_x = 0
-            start_y = random.randint(0, height - 1)
-        else:  # right
-            start_x = width - 1
-            start_y = random.randint(0, height - 1)
-
-        main_cracks.append((start_x, start_y))
-
-    # Создаем сеть трещин
-    all_cracks = main_cracks.copy()
-
-    for i in range(complexity):
-        new_cracks = []
-        for crack in all_cracks:
-            # Создаем ответвления от существующих трещин
-            if random.random() < 0.7:  # Вероятность ответвления
-                angle = random.uniform(0, 2 * math.pi)
-                length = random.randint(20, min(width, height) // (i + 2))
-
-                end_x = int(crack[0] + length * math.cos(angle))
-                end_y = int(crack[1] + length * math.sin(angle))
-
-                # Обеспечиваем, чтобы трещина оставалась в пределах изображения
-                end_x = max(0, min(width - 1, end_x))
-                end_y = max(0, min(height - 1, end_y))
-
-                # Рисуем трещину
-                thickness = max(1, random.randint(1, 3 - i))
-                color = (0, 0, 0, random.randint(150, 220))  # Полупрозрачный черный
-
-                draw.line([crack, (end_x, end_y)], fill=color, width=thickness)
-
-                new_cracks.append((end_x, end_y))
-
-        all_cracks.extend(new_cracks)
-
-    # Добавляем микротрещины
-    num_micro_cracks = int(density * 100)
-    for _ in range(num_micro_cracks):
-        start_x = random.randint(0, width - 1)
-        start_y = random.randint(0, height - 1)
-
-        angle = random.uniform(0, 2 * math.pi)
-        length = random.randint(5, 15)
-
-        end_x = int(start_x + length * math.cos(angle))
-        end_y = int(start_y + length * math.sin(angle))
-
-        end_x = max(0, min(width - 1, end_x))
-        end_y = max(0, min(height - 1, end_y))
-
-        thickness = random.choice([1, 1, 1, 2])  # В основном тонкие трещины
-        color = (0, 0, 0, random.randint(100, 180))
-
-        draw.line([(start_x, start_y), (end_x, end_y)], fill=color, width=thickness)
-
-    return crackle_img
-
-def apply_authentic_aging_effect(image, aging_level=0.5, session_id=None):
+def preprocess_image(image, flare_intensity=1.0, session_id=None):
     global preprocessed_data
 
     if session_id is None:
@@ -105,90 +28,195 @@ def apply_authentic_aging_effect(image, aging_level=0.5, session_id=None):
 
     # Конвертируем в numpy array
     img = np.array(image)
-    height, width = img.shape[:2]
 
     # Сохраняем оригинальное изображение
-    original_img = img.copy()
-
-    # 1. Выцветание цветов - более тонкое
-    fade_factor = 0.8 + (aging_level * 0.2)  # 0.8-1.0
-    faded_img = (img.astype(np.float32) * fade_factor).astype(np.uint8)
-
-    # 2. Добавляем теплый желтоватый оттенок (патина времени)
-    sepia_tone = np.array([[[15, 25, 40]]], dtype=np.uint8) * aging_level
-    aged_img = np.clip(faded_img.astype(np.int16) + sepia_tone, 0, 255).astype(np.uint8)
-
-    # 3. Создаем аутентичный кракелюр
-    crackle_density = 0.3 + (aging_level * 0.7)  # 0.3-1.0
-    crackle_complexity = min(4, int(aging_level * 3) + 1)
-
-    crackle_texture = generate_craquelure_pattern(width, height, crackle_density, crackle_complexity)
-    crackle_array = np.array(crackle_texture)
-
-    # 4. Легкое текстурирование - имитация поверхности холста
-    canvas_texture = np.random.rand(height, width) * 15 * aging_level
-    canvas_texture = np.stack([canvas_texture] * 3, axis=-1)
-    textured_img = np.clip(aged_img.astype(np.int16) - canvas_texture.astype(np.int16), 0, 255).astype(np.uint8)
-
-    # 5. Конвертируем обратно в PIL для наложения кракелюра
-    base_image = Image.fromarray(textured_img)
-
-    # 6. Накладываем кракелюр
-    final_image = Image.alpha_composite(
-        base_image.convert('RGBA'),
-        crackle_texture
-    ).convert('RGB')
-
-    final_array = np.array(final_image)
-
-    # 7. Добавляем легкое виньетирование
-    y, x = np.ogrid[:height, :width]
-    center_x, center_y = width / 2, height / 2
-    radius = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-    max_radius = np.sqrt(center_x**2 + center_y**2)
-
-    vignette = 1 - 0.4 * aging_level * (radius / max_radius)**1.5
-    vignette = np.clip(vignette, 0.6, 1)
-    vignette = np.stack([vignette] * 3, axis=-1)
-
-    final_array = (final_array.astype(np.float32) * vignette).astype(np.uint8)
-
-    # 8. Легкое размытие для естественности
-    if aging_level > 0.3:
-        blur_amount = int(aging_level * 1.5)
-        if blur_amount > 0:
-            blurred = cv2.GaussianBlur(final_array, (blur_amount*2+1, blur_amount*2+1), 0)
-            # Слегка смешиваем с размытой версией
-            alpha = 0.2 * aging_level
-            final_array = cv2.addWeighted(final_array, 1-alpha, blurred, alpha, 0)
-
-    # Сохраняем предварительно обработанные данные
     preprocessed_data[session_id] = {
-        'original_img': original_img,
-        'aged_img': final_array,
-        'crackle_texture': crackle_array,
-        'aging_level': aging_level,
-        'img_shape': original_img.shape
+        'original_img': img,
+        'flare_intensity': flare_intensity,
+        'img_shape': img.shape
     }
 
     return session_id
 
-def apply_aging_intensity(preprocessed_data, intensity):
-    """Применяет интенсивность старения к предобработанному изображению"""
+def generate_professional_lens_flare(preprocessed_data, light_position):
+    # Получаем данные из предобработки
     original_img = preprocessed_data['original_img']
-    aged_img = preprocessed_data['aged_img']
-    base_aging_level = preprocessed_data['aging_level']
+    flare_intensity = preprocessed_data['flare_intensity']
+    h, w, _ = original_img.shape
 
-    # Корректируем интенсивность относительно базового уровня старения
-    effective_intensity = min(1.5, intensity * base_aging_level * 1.2)
+    # Создаем черное изображение для бликов в формате PIL для лучшего контроля
+    flare_pil = Image.new('RGB', (w, h), (0, 0, 0))
+    draw = ImageDraw.Draw(flare_pil, 'RGBA')
 
-    if effective_intensity <= 1.0:
-        # Плавный переход от оригинального к состаренному
-        result = cv2.addWeighted(original_img, 1-effective_intensity, aged_img, effective_intensity, 0)
-    else:
-        # Для высокой интенсивности - дополнительное выцветание
-        extra_fade = 0.9 - (effective_intensity - 1.0) * 0.1
-        result = (aged_img.astype(np.float32) * extra_fade).astype(np.uint8)
+    # Вычисляем позицию источника света на основе light_position (0-200)
+    angle = (light_position / 200) * 2 * np.pi
+
+    # Центр изображения
+    center_x, center_y = w // 2, h // 2
+
+    # Позиция источника света (за пределами изображения)
+    source_distance = max(w, h) * 0.7
+    source_x = center_x + source_distance * np.cos(angle)
+    source_y = center_y + source_distance * np.sin(angle)
+
+    # Основные параметры эффекта
+    flare_elements = []
+
+    # 1. ОСНОВНЫЕ ЛУЧИ (главный элемент эффекта)
+    num_main_rays = 8
+    ray_length = max(w, h) * 0.6
+    ray_width = 15
+
+    for i in range(num_main_rays):
+        ray_angle = angle + (i * 2 * math.pi / num_main_rays)
+        end_x = source_x + math.cos(ray_angle) * ray_length
+        end_y = source_y + math.sin(ray_angle) * ray_length
+
+        # Создаем луч с градиентом
+        steps = 30
+        for j in range(steps):
+            t = j / steps
+            current_x = source_x + (end_x - source_x) * t
+            current_y = source_y + (end_y - source_y) * t
+            current_width = ray_width * (1 - t * 0.8)
+            current_intensity = 0.7 * (1 - t)
+
+            # Цвет луча (от теплого к холодному)
+            if t < 0.3:
+                color = (255, 200, 100, int(200 * current_intensity))  # Теплый
+            elif t < 0.6:
+                color = (200, 220, 255, int(180 * current_intensity))  # Холодный
+            else:
+                color = (150, 180, 255, int(150 * current_intensity))  # Синий
+
+            draw.ellipse([
+                current_x - current_width/2,
+                current_y - current_width/2,
+                current_x + current_width/2,
+                current_y + current_width/2
+            ], fill=color)
+
+    # 2. ОПТИЧЕСКИЕ КОЛЬЦА (характерные для объективов)
+    num_rings = 5
+    for i in range(num_rings):
+        t = 0.2 + 0.6 * (i / (num_rings - 1))
+        ring_x = center_x + (source_x - center_x) * (1 - t)
+        ring_y = center_y + (source_y - center_y) * (1 - t)
+
+        # Размер и интенсивность колец
+        ring_size = 20 + 80 * (1 - abs(t - 0.5) * 2)
+        ring_thickness = 3 + 8 * (1 - abs(t - 0.5) * 2)
+        intensity = 0.8 * (1 - abs(t - 0.5) * 2)
+
+        # Цвета колец (радужный эффект)
+        colors = [
+            (255, 100, 100, int(200 * intensity)),  # Красный
+            (255, 200, 100, int(180 * intensity)),  # Оранжевый
+            (255, 255, 100, int(160 * intensity)),  # Желтый
+            (100, 255, 100, int(140 * intensity)),  # Зеленый
+            (100, 200, 255, int(120 * intensity))   # Синий
+        ]
+
+        color = colors[i % len(colors)]
+
+        # Рисуем кольцо
+        for r in range(int(ring_thickness)):
+            current_size = ring_size - r
+            draw.ellipse([
+                ring_x - current_size,
+                ring_y - current_size,
+                ring_x + current_size,
+                ring_y + current_size
+            ], outline=color, width=1)
+
+    # 3. ОСНОВНОЙ ИСТОЧНИК СВЕТА (яркое ядро)
+    core_size = 35
+    # Ядро источника
+    draw.ellipse([
+        source_x - core_size,
+        source_y - core_size,
+        source_x + core_size,
+        source_y + core_size
+    ], fill=(255, 255, 220, 255))
+
+    # Внешнее свечение
+    for i in range(3):
+        glow_size = core_size + 10 + i * 8
+        alpha = 200 - i * 60
+        draw.ellipse([
+            source_x - glow_size,
+            source_y - glow_size,
+            source_x + glow_size,
+            source_y + glow_size
+        ], outline=(255, 240, 180, alpha), width=2)
+
+    # 4. ВТОРИЧНЫЕ ЛУЧИ (менее яркие)
+    num_secondary_rays = 16
+    secondary_ray_length = max(w, h) * 0.4
+    for i in range(num_secondary_rays):
+        ray_angle = angle + (i * 2 * math.pi / num_secondary_rays) + 0.1
+        end_x = source_x + math.cos(ray_angle) * secondary_ray_length
+        end_y = source_y + math.sin(ray_angle) * secondary_ray_length
+
+        steps = 20
+        for j in range(steps):
+            t = j / steps
+            current_x = source_x + (end_x - source_x) * t
+            current_y = source_y + (end_y - source_y) * t
+            current_width = 5 * (1 - t)
+            current_intensity = 0.4 * (1 - t)
+
+            color = (200, 220, 255, int(150 * current_intensity))
+
+            draw.ellipse([
+                current_x - current_width/2,
+                current_y - current_width/2,
+                current_x + current_width/2,
+                current_y + current_width/2
+            ], fill=color)
+
+    # 5. ДИФРАКЦИОННЫЕ ЭФФЕКТЫ (мелкие детали)
+    num_diffraction = 50
+    for i in range(num_diffraction):
+        t = random.uniform(0.1, 0.9)
+        diff_x = center_x + (source_x - center_x) * (1 - t) + random.randint(-50, 50)
+        diff_y = center_y + (source_y - center_y) * (1 - t) + random.randint(-50, 50)
+
+        size = random.randint(2, 8)
+        intensity = random.uniform(0.3, 0.7)
+
+        # Случайный цвет с преобладанием синих и фиолетовых оттенков
+        colors = [
+            (180, 180, 255, int(200 * intensity)),  # Голубой
+            (200, 150, 255, int(180 * intensity)),  # Фиолетовый
+            (150, 200, 255, int(160 * intensity))   # Синий
+        ]
+
+        color = random.choice(colors)
+
+        draw.ellipse([
+            diff_x - size,
+            diff_y - size,
+            diff_x + size,
+            diff_y + size
+        ], fill=color)
+
+    # Конвертируем обратно в numpy array
+    flare_np = np.array(flare_pil.convert('RGB')).astype(np.float32) / 255.0
+
+    # Применяем размытие для естественного вида
+    flare_blurred = cv2.GaussianBlur(flare_np, (0, 0), 3)
+
+    # Комбинируем с оригинальным изображением (режим экран)
+    result = original_img.astype(np.float32) / 255.0
+    screen_effect = 1 - (1 - result) * (1 - flare_blurred)
+
+    # Усиливаем эффект согласно настройке интенсивности
+    result = cv2.addWeighted(screen_effect, 0.8, flare_blurred, flare_intensity * 0.6, 0)
+
+    # Обеспечиваем корректные границы
+    result = np.clip(result, 0, 1) * 255
+    result = result.astype(np.uint8)
 
     return Image.fromarray(result)
 
@@ -201,14 +229,14 @@ def upload_image():
 
         # Получаем файл и параметры
         file = request.files['image']
-        aging_level = float(request.form.get('aging_level', 0.5))
+        flare_intensity = float(request.form.get('flare_intensity', 1.0))
 
         # Загружаем изображение и конвертируем в RGB
         image = Image.open(file.stream).convert('RGB')
 
         # Предварительная обработка
         processing_progress = 50
-        session_id = apply_authentic_aging_effect(image, aging_level)
+        session_id = preprocess_image(image, flare_intensity)
         current_session_id = session_id
         processing_progress = 100
 
@@ -222,14 +250,14 @@ def render_image():
     try:
         # Получаем параметры
         data = request.get_json()
-        aging_intensity = float(data.get('aging_intensity', 1.0))
+        light_position = int(data.get('light_position', 100))
         session_id = data.get('session_id', current_session_id)
 
         if session_id not in preprocessed_data:
             return jsonify({'error': 'No preprocessed image found for this session. Please upload an image first.'}), 400
 
-        # Применяем эффект старения с заданной интенсивностью
-        processed_image = apply_aging_intensity(preprocessed_data[session_id], aging_intensity)
+        # Рендерим изображение с заданным положением света
+        processed_image = generate_professional_lens_flare(preprocessed_data[session_id], light_position)
 
         # Конвертируем в base64 для ответа
         img_io = io.BytesIO()
@@ -267,235 +295,203 @@ def index():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Authentic Painting Aging</title>
+        <title>Professional Lens Flare Effect</title>
         <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <style>
-            body { font-family: 'Georgia', serif; margin: 0; padding: 20px; background: #f8f6f2; color: #5d4037; }
-            .container { max-width: 1200px; margin: 0 auto; background: #fffaf0; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(93, 64, 55, 0.1); border: 2px solid #d7ccc8; }
-            .controls { margin-bottom: 30px; padding: 25px; background: linear-gradient(135deg, #f5f5f5, #e8e8e8); border-radius: 12px; border-left: 5px solid #8d6e63; }
-            .control-group { margin-bottom: 20px; display: flex; align-items: center; padding: 10px; background: rgba(255, 255, 255, 0.8); border-radius: 8px; }
-            label { display: inline-block; width: 220px; font-weight: bold; color: #5d4037; font-size: 16px; }
-            input[type="range"] { flex: 1; margin: 0 20px; height: 8px; background: #d7ccc8; border-radius: 4px; }
-            input[type="range"]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; background: #8d6e63; border-radius: 50%; cursor: pointer; }
-            .value-display { width: 70px; text-align: center; font-weight: bold; color: #8d6e63; font-size: 16px; background: #f5f5f5; padding: 5px; border-radius: 5px; border: 1px solid #d7ccc8; }
+            body { font-family: Arial, sans-serif; margin: 20px; background-color: #0a0a1a; color: #e0e0ff; }
+            .container { max-width: 1000px; margin: 0 auto; background: #1a1a2a; padding: 20px; border-radius: 15px; box-shadow: 0 0 25px rgba(0, 100, 255, 0.2); }
+            .controls { margin-bottom: 20px; padding: 20px; background: #2a2a3a; border-radius: 10px; border: 1px solid #3a3a5a; }
+            .control-group { margin-bottom: 15px; display: flex; align-items: center; }
+            label { display: inline-block; width: 200px; font-weight: bold; color: #4fc3f7; }
+            input[type="range"] { width: 300px; margin-right: 10px; background: #3a3a5a; }
+            .value-display { width: 50px; text-align: center; font-weight: bold; color: #4fc3f7; }
+            #result-container { margin-top: 20px; text-align: center; }
+            #processed-image { max-width: 100%; box-shadow: 0 0 30px rgba(79, 195, 247, 0.4); border-radius: 8px; }
             
             .progress-container {
                 width: 100%;
-                background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
-                border-radius: 10px;
-                margin: 20px 0;
+                background-color: #2a2a3a;
+                border-radius: 8px;
+                margin: 15px 0;
                 display: none;
-                border: 2px solid #d7ccc8;
-                overflow: hidden;
             }
             
             .progress-bar {
                 width: 0%;
-                height: 30px;
-                background: linear-gradient(90deg, #8d6e63, #a1887f);
+                height: 20px;
+                background: linear-gradient(90deg, #4fc3f7, #01579b);
+                border-radius: 8px;
                 text-align: center;
-                line-height: 30px;
-                color: white;
+                line-height: 20px;
+                color: #000;
                 font-weight: bold;
-                font-size: 14px;
-                transition: width 0.8s ease-in-out;
-                text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+                transition: width 0.3s;
             }
             
             .button {
-                background: linear-gradient(45deg, #8d6e63, #a1887f);
+                background: linear-gradient(45deg, #01579b, #4fc3f7);
                 border: none;
                 color: white;
-                padding: 15px 30px;
+                padding: 12px 25px;
                 text-align: center;
+                text-decoration: none;
+                display: inline-block;
                 font-size: 16px;
-                margin: 12px 8px;
-                cursor: pointer;
-                border-radius: 30px;
-                transition: all 0.3s ease;
                 font-weight: bold;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                box-shadow: 0 4px 15px rgba(141, 110, 99, 0.3);
+                margin: 8px 5px;
+                cursor: pointer;
+                border-radius: 6px;
+                transition: transform 0.2s, box-shadow 0.2s;
             }
             
             .button:hover {
-                background: linear-gradient(45deg, #6d4c41, #8d6e63);
                 transform: translateY(-3px);
-                box-shadow: 0 6px 20px rgba(141, 110, 99, 0.4);
+                box-shadow: 0 5px 20px rgba(79, 195, 247, 0.4);
             }
             
             .animation-controls {
-                margin-top: 30px;
-                padding: 25px;
-                background: linear-gradient(135deg, #f3e5f5, #e8eaf6);
-                border-radius: 12px;
-                border-left: 5px solid #7e57c2;
+                margin-top: 20px;
+                padding: 20px;
+                background: linear-gradient(135deg, #2a2a3a, #1a1a2a);
+                border-radius: 10px;
+                border: 1px solid #4fc3f7;
             }
             
             .session-info {
-                margin-top: 20px;
-                padding: 20px;
-                background: linear-gradient(135deg, #e8f5e8, #f1f8e9);
-                border-radius: 12px;
-                border-left: 5px solid #66bb6a;
-            }
-            
-            .image-comparison {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 30px;
-                margin-top: 30px;
-            }
-            
-            .image-container {
-                text-align: center;
-                padding: 20px;
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-                border: 3px solid #d7ccc8;
-                transition: transform 0.3s ease;
-            }
-            
-            .image-container:hover {
-                transform: translateY(-5px);
-            }
-            
-            .image-container img {
-                max-width: 100%;
-                border: 2px solid #d7ccc8;
-                border-radius: 8px;
-                box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-                transition: all 0.3s ease;
-            }
-            
-            .image-container img:hover {
-                transform: scale(1.02);
-                box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-            }
-            
-            .image-label {
                 margin-top: 15px;
-                font-weight: bold;
-                color: #5d4037;
-                font-size: 18px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
+                padding: 15px;
+                background: #2a2a3a;
+                border-radius: 8px;
+                border-left: 4px solid #4fc3f7;
             }
             
-            h1, h2, h3 {
-                color: #5d4037;
-                text-align: center;
-                margin-bottom: 25px;
-                text-transform: uppercase;
-                letter-spacing: 2px;
+            h1 { color: #4fc3f7; text-align: center; text-shadow: 0 0 15px rgba(79, 195, 247, 0.7); margin-bottom: 10px; }
+            h2 { color: #29b6f6; border-bottom: 2px solid #4fc3f7; padding-bottom: 8px; margin-top: 0; }
+            h3 { color: #4fc3f7; margin-top: 0; }
+            
+            .description { text-align: center; color: #a0a0cc; margin-bottom: 25px; }
+            
+            input[type="file"] {
+                background: #3a3a5a;
+                color: #e0e0ff;
+                padding: 10px;
+                border-radius: 6px;
+                border: 1px solid #4fc3f7;
+                width: 300px;
             }
             
-            h1 {
-                font-size: 36px;
-                margin-bottom: 10px;
-                color: #8d6e63;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            progress {
+                background: #3a3a5a;
+                border: 1px solid #4fc3f7;
+                height: 20px;
+                border-radius: 6px;
             }
             
-            .effect-description {
-                text-align: center;
-                color: #8d6e63;
-                margin-bottom: 30px;
-                font-style: italic;
-                font-size: 18px;
-                line-height: 1.6;
+            progress::-webkit-progress-bar { background: #3a3a5a; border-radius: 6px; }
+            progress::-webkit-progress-value { background: linear-gradient(90deg, #4fc3f7, #01579b); border-radius: 6px; }
+            
+            .feature-list {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                margin: 20px 0;
             }
             
-            .info-text {
-                text-align: center;
-                color: #8d6e63;
-                margin: 15px 0;
-                font-size: 14px;
+            .feature {
+                width: 48%;
+                background: #2a2a3a;
+                padding: 15px;
+                margin-bottom: 15px;
+                border-radius: 8px;
+                border-left: 3px solid #4fc3f7;
             }
+            
+            .feature h4 { color: #4fc3f7; margin-top: 0; }
+            .feature p { color: #c0c0e0; margin-bottom: 0; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🎨 Authentic Painting Aging</h1>
-            <p class="effect-description">Transform your images into aged masterpieces with authentic craquelure patterns</p>
+            <h1>🌞 PROFESSIONAL LENS FLARE EFFECT 🌞</h1>
+            <p class="description">Создавайте реалистичные оптические блики с выраженными лучами и кольцами, как в профессиональной фотографии</p>
             
-            <div class="controls">
-                <h2>🖼️ Upload & Settings</h2>
-                <form id="upload-form" enctype="multipart/form-data">
-                    <div class="control-group">
-                        <label for="image">Select Image:</label>
-                        <input type="file" id="image" name="image" accept="image/*" style="flex: 2; padding: 8px; border: 2px solid #d7ccc8; border-radius: 5px;">
-                    </div>
-                    <div class="control-group">
-                        <label for="aging_level">Craquelure Density (0.1-1.0):</label>
-                        <input type="range" id="aging_level" name="aging_level" min="0.1" max="1.0" step="0.1" value="0.5">
-                        <span id="aging-level-value" class="value-display">0.5</span>
-                    </div>
-                    <div style="text-align: center; margin-top: 20px;">
-                        <button type="button" id="upload-btn" class="button">🎨 Apply Authentic Aging</button>
-                    </div>
-                </form>
-                <p class="info-text">Higher values create more intricate crack patterns</p>
+            <div class="feature-list">
+                <div class="feature">
+                    <h4>🔦 Четкие лучи</h4>
+                    <p>Яркие выраженные лучи, расходящиеся от источника света</p>
+                </div>
+                <div class="feature">
+                    <h4>⭕ Оптические кольца</h4>
+                    <p>Характерные круги, образующиеся в системе линз объектива</p>
+                </div>
+                <div class="feature">
+                    <h4>🎯 Физическая точность</h4>
+                    <p>Эффект, соответствующий реальным оптическим явлениям</p>
+                </div>
+                <div class="feature">
+                    <h4>🌈 Реалистичное свечение</h4>
+                    <p>Естественное распределение света и цветовых аберраций</p>
+                </div>
             </div>
             
-            <div id="progress-container" class="progress-container">
-                <div id="progress-bar" class="progress-bar">Creating masterpiece... 0%</div>
-            </div>
+            <form id="upload-form" enctype="multipart/form-data">
+                <div class="controls">
+                    <h2>📁 Загрузка изображения</h2>
+                    <div class="control-group">
+                        <label for="image">Выберите изображение:</label>
+                        <input type="file" id="image" name="image" accept="image/*" required>
+                    </div>
+                    <div class="control-group">
+                        <label for="flare_intensity">Интенсивность эффекта:</label>
+                        <input type="range" id="flare_intensity" name="flare_intensity" min="0.5" max="2.0" step="0.1" value="1.0">
+                        <span id="flare-intensity-value" class="value-display">1.0</span>
+                    </div>
+                    <button type="button" id="upload-btn" class="button">🚀 Загрузить и обработать</button>
+                </div>
+            </form>
             
             <div id="session-info" class="session-info" style="display: none;">
-                <h3>📋 Session Information</h3>
-                <div class="control-group">
-                    <label>Session ID:</label>
-                    <span id="session-id" style="flex: 1; font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 5px; border: 1px solid #d7ccc8; color: #8d6e63;"></span>
-                </div>
-                <div style="text-align: center; margin-top: 15px;">
-                    <button type="button" id="cleanup-btn" class="button">🧹 Cleanup Session</button>
-                </div>
+                <h3>📊 Информация о сессии</h3>
+                <p>ID сессии: <span id="session-id" style="color: #4fc3f7;"></span></p>
+                <button type="button" id="cleanup-btn" class="button">🧹 Очистить сессию</button>
             </div>
             
             <div id="render-controls" style="display: none;">
-                <h2>⚙️ Aging Controls</h2>
-                <div class="control-group">
-                    <label for="aging_intensity">Aging Intensity (0.0-1.5):</label>
-                    <input type="range" id="aging_intensity" name="aging_intensity" min="0.0" max="1.5" step="0.05" value="1.0">
-                    <span id="aging-intensity-value" class="value-display">1.0</span>
-                </div>
-                <p class="info-text">Adjust to see different stages of aging</p>
-                
-                <div class="animation-controls">
-                    <h3>✨ Aging Animation</h3>
+                <div class="controls">
+                    <h2>🎛️ Управление эффектом</h2>
                     <div class="control-group">
-                        <label for="animation-speed">Animation Speed:</label>
-                        <input type="range" id="animation-speed" name="animation-speed" min="1" max="10" value="5">
-                        <span id="animation-speed-value" class="value-display">5</span>
+                        <label for="light_position">Положение источника:</label>
+                        <input type="range" id="light_position" name="light_position" min="0" max="200" value="100">
+                        <span id="light-position-value" class="value-display">100</span>
                     </div>
-                    <div style="text-align: center;">
-                        <button type="button" id="animate-btn" class="button">▶️ View Aging Process</button>
-                        <button type="button" id="stop-animation-btn" class="button" style="display: none;">⏹️ Stop Animation</button>
-                    </div>
+                    <button type="button" id="render-btn" class="button">🖼️ Применить эффект</button>
                     
-                    <div class="control-group">
-                        <label for="animation-progress">Progress:</label>
-                        <progress id="animation-progress" value="0" max="100" style="flex: 1; height: 20px;"></progress>
-                        <span id="animation-progress-value" class="value-display">0%</span>
+                    <div class="animation-controls">
+                        <h3>🎬 Анимация эффекта</h3>
+                        <div class="control-group">
+                            <label for="animation-speed">Скорость анимации:</label>
+                            <input type="range" id="animation-speed" name="animation-speed" min="1" max="10" value="5">
+                            <span id="animation-speed-value" class="value-display">5</span>
+                        </div>
+                        <button type="button" id="animate-btn" class="button">▶️ Запустить анимацию</button>
+                        <button type="button" id="stop-animation-btn" class="button" style="display: none;">⏹️ Остановить</button>
+                        
+                        <div class="control-group">
+                            <label for="animation-progress">Прогресс анимации:</label>
+                            <progress id="animation-progress" value="0" max="100" style="width: 300px;"></progress>
+                            <span id="animation-progress-value" class="value-display">0%</span>
+                        </div>
                     </div>
                 </div>
             </div>
             
+            <div id="progress-container" class="progress-container">
+                <div id="progress-bar" class="progress-bar">0%</div>
+            </div>
+            
             <div id="result-container" style="display: none;">
-                <h2>🖼️ Result Preview</h2>
-                <div class="image-comparison">
-                    <div class="image-container">
-                        <div class="image-label">Original Artwork</div>
-                        <img id="original-image">
-                    </div>
-                    <div class="image-container">
-                        <div class="image-label">Aged Masterpiece</div>
-                        <img id="processed-image">
-                    </div>
-                </div>
+                <h2>🎨 Результат обработки</h2>
+                <img id="processed-image">
             </div>
         </div>
         
@@ -506,15 +502,15 @@ def index():
                 let currentSessionId = null;
                 
                 // Обновляем значения ползунков
-                $('#aging_level').on('input', function() {
-                    $('#aging-level-value').text($(this).val());
+                $('#light_position').on('input', function() {
+                    $('#light-position-value').text($(this).val());
+                    if (currentSessionId) {
+                        renderFrame($(this).val(), false);
+                    }
                 });
                 
-                $('#aging_intensity').on('input', function() {
-                    $('#aging-intensity-value').text($(this).val());
-                    if (currentSessionId) {
-                        renderFrame($(this).val());
-                    }
+                $('#flare_intensity').on('input', function() {
+                    $('#flare-intensity-value').text($(this).val());
                 });
                 
                 $('#animation-speed').on('input', function() {
@@ -525,7 +521,7 @@ def index():
                 function updateProgress() {
                     $.get('/progress', function(data) {
                         var progress = data.progress;
-                        $('#progress-bar').css('width', progress + '%').text('Creating masterpiece... ' + progress + '%');
+                        $('#progress-bar').css('width', progress + '%').text(progress + '%');
                         
                         if (progress < 100) {
                             setTimeout(updateProgress, 100);
@@ -533,28 +529,19 @@ def index():
                             setTimeout(function() {
                                 $('#progress-container').fadeOut();
                                 $('#render-controls').show();
-                                $('#result-container').show();
+                                // Автоматически рендерим первое изображение
+                                renderFrame($('#light_position').val(), true);
                             }, 1000);
                         }
                     });
                 }
                 
-                // Загрузка и обработка изображения
+                // Загрузка и предварительная обработка изображения
                 $('#upload-btn').click(function() {
                     $('#progress-container').show();
-                    $('#progress-bar').css('width', '0%').text('Creating masterpiece... 0%');
+                    $('#progress-bar').css('width', '0%').text('0%');
                     
                     var formData = new FormData($('#upload-form')[0]);
-                    
-                    // Сохраняем оригинальное изображение для preview
-                    var fileInput = $('#image')[0];
-                    if (fileInput.files.length > 0) {
-                        var reader = new FileReader();
-                        reader.onload = function(e) {
-                            $('#original-image').attr('src', e.target.result);
-                        };
-                        reader.readAsDataURL(fileInput.files[0]);
-                    }
                     
                     $.ajax({
                         url: '/upload',
@@ -584,29 +571,33 @@ def index():
                 $('#cleanup-btn').click(function() {
                     if (!currentSessionId) return;
                     
-                    if (confirm('Are you sure you want to cleanup this session?')) {
-                        $.ajax({
-                            url: '/cleanup',
-                            type: 'POST',
-                            contentType: 'application/json',
-                            data: JSON.stringify({ session_id: currentSessionId }),
-                            success: function(data) {
+                    $.ajax({
+                        url: '/cleanup',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            session_id: currentSessionId
+                        }),
+                        success: function(data) {
+                            if (data.error) {
+                                alert('Error: ' + data.error);
+                            } else {
+                                alert('Session cleaned up successfully');
                                 currentSessionId = null;
                                 $('#session-id').text('');
                                 $('#session-info').hide();
                                 $('#render-controls').hide();
                                 $('#result-container').hide();
-                                $('#progress-container').hide();
-                            },
-                            error: function() {
-                                alert('Server error occurred');
                             }
-                        });
-                    }
+                        },
+                        error: function() {
+                            alert('Server error occurred');
+                        }
+                    });
                 });
                 
                 // Рендеринг изображения
-                function renderFrame(aging_intensity, updateUI = true) {
+                function renderFrame(light_position, updateUI = true) {
                     if (!currentSessionId) return;
                     
                     $.ajax({
@@ -614,7 +605,7 @@ def index():
                         type: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify({
-                            aging_intensity: aging_intensity,
+                            light_position: light_position,
                             session_id: currentSessionId
                         }),
                         success: function(data) {
@@ -623,9 +614,11 @@ def index():
                                 if (isAnimating) stopAnimation();
                             } else {
                                 $('#processed-image').attr('src', 'data:image/jpeg;base64,' + data.image);
+                                $('#result-container').show();
+                                
                                 if (updateUI) {
-                                    $('#aging_intensity').val(aging_intensity);
-                                    $('#aging-intensity-value').text(aging_intensity);
+                                    $('#light_position').val(light_position);
+                                    $('#light-position-value').text(light_position);
                                 }
                             }
                         },
@@ -637,17 +630,9 @@ def index():
                 }
                 
                 // Рендеринг по кнопке
-                $('#render-btn')?.click(function() {
-                    var intensity = $('#aging_intensity').val();
-                    renderFrame(intensity);
-                });
-                
-                // Автоматический рендеринг при изменении ползунка
-                $('#aging_intensity').change(function() {
-                    if (currentSessionId) {
-                        var intensity = $('#aging_intensity').val();
-                        renderFrame(intensity);
-                    }
+                $('#render-btn').click(function() {
+                    var light_position = $('#light_position').val();
+                    renderFrame(light_position);
                 });
                 
                 // Функции для управления анимацией
@@ -658,24 +643,24 @@ def index():
                     $('#animate-btn').hide();
                     $('#stop-animation-btn').show();
                     
-                    var intensities = [];
-                    for (var i = 0; i <= 15; i++) {
-                        intensities.push(i * 0.1);
+                    var positions = [];
+                    for (var i = 0; i <= 200; i += 2) {
+                        positions.push(i);
                     }
                     
                     var speed = $('#animation-speed').val();
-                    var delay = 120 - speed * 10;
-                    var totalFrames = intensities.length;
+                    var delay = 110 - speed * 10;
+                    var totalFrames = positions.length;
                     var currentFrame = 0;
                     
                     animationInterval = setInterval(function() {
                         if (currentFrame >= totalFrames) {
-                            stopAnimation();
-                            return;
+                            stopAnimation()
+                            return
                         }
                         
-                        var intensity = intensities[currentFrame];
-                        renderFrame(intensity, false);
+                        var pos = positions[currentFrame];
+                        renderFrame(pos, false);
                         
                         var progress = Math.round((currentFrame / totalFrames) * 100);
                         $('#animation-progress').val(progress);
@@ -692,13 +677,20 @@ def index():
                     clearInterval(animationInterval);
                     $('#animate-btn').show();
                     $('#stop-animation-btn').hide();
+                    
                     $('#animation-progress').val(0);
                     $('#animation-progress-value').text('0%');
                 }
                 
                 // Запуск анимации
-                $('#animate-btn').click(startAnimation);
-                $('#stop-animation-btn').click(stopAnimation);
+                $('#animate-btn').click(function() {
+                    startAnimation();
+                });
+                
+                // Остановка анимации
+                $('#stop-animation-btn').click(function() {
+                    stopAnimation();
+                });
             });
         </script>
     </body>

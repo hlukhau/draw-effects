@@ -1311,6 +1311,186 @@ class DrawingEffectGenerator:
         
         return hatching_strokes
     
+    def generate_individual_segment_fragment(self, output_dir, file_id, segment_id, external_cache=None):
+        """
+        Generate original image fragment for a specific individual segment
+        Returns the original pixels of the segment with their actual colors from the source image
+        
+        Args:
+            output_dir: Directory containing segment data
+            file_id: File identifier
+            segment_id: ID of the segment to extract
+            external_cache: External cache for segment data
+            
+        Returns:
+            Dictionary with fragment data containing original pixels and their colors
+        """
+        import json
+        
+        # Use external cache if provided, otherwise use instance cache
+        cache = external_cache if external_cache is not None else self._individual_segment_cache
+        
+        # Check cache first to avoid repeated file reads and segmentation
+        cache_key = file_id
+        if cache_key not in cache:
+            # Load segment information - look in the outputs directory
+            outputs_dir = os.path.join(os.path.dirname(output_dir), 'outputs')
+            if not os.path.exists(outputs_dir):
+                outputs_dir = output_dir  # fallback to original directory
+            
+            print(f"[FRAGMENT] Looking for segment files in: {outputs_dir}")
+            
+            # Load JSON segment data - prioritize individual segmentation files
+            json_files = [f for f in os.listdir(outputs_dir) 
+                         if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                         and 'individual' in f and 'boundaries' not in f]
+            
+            if not json_files:
+                # Fallback to regular segmentation files if individual not found
+                json_files = [f for f in os.listdir(outputs_dir) 
+                             if f.startswith(f"{file_id}_") and f.endswith('.json') 
+                             and 'boundaries' not in f and 'individual' not in f]
+                print(f"[FRAGMENT] No individual segmentation found, using regular segmentation")
+            else:
+                print(f"[FRAGMENT] Found individual segmentation files: {json_files}")
+                
+            if not json_files:
+                json_files = [f for f in os.listdir(outputs_dir) 
+                             if file_id in f and f.endswith('.json') 
+                             and 'boundaries' not in f]
+                
+            if not json_files:
+                raise Exception(f"No segment data found for file_id: {file_id} in directory: {outputs_dir}")
+            
+            # Always select the NEWEST JSON file by modification time
+            json_files_with_time = []
+            for json_file in json_files:
+                file_path = os.path.join(outputs_dir, json_file)
+                mod_time = os.path.getmtime(file_path)
+                json_files_with_time.append((json_file, mod_time))
+            
+            json_files_with_time.sort(key=lambda x: x[1], reverse=True)
+            newest_json_file = json_files_with_time[0][0]
+            
+            json_path = os.path.join(outputs_dir, newest_json_file)
+            print(f"[FRAGMENT] Loading segment data from: {json_path}")
+            
+            with open(json_path, 'r') as f:
+                segment_data = json.load(f)
+                
+            # Load the original image to create segmentation mask
+            original_files = [f for f in os.listdir(outputs_dir) 
+                             if f.startswith(f"{file_id}_") and 'original' in f and f.endswith('.png')]
+            if not original_files:
+                raise Exception(f"Original image not found for file_id: {file_id}")
+            
+            original_path = os.path.join(outputs_dir, original_files[0])
+            original_image = self._load_image_robust(original_path)
+            
+            # Create segmentation mask once and cache it
+            threshold = segment_data.get('threshold', 30)
+            segments_mask = self._segment_by_color_similarity_individual(original_image, threshold)
+            
+            # Cache both the JSON data and the segmentation mask
+            cache[cache_key] = {
+                'segment_data': segment_data,
+                'segments_mask': segments_mask,
+                'original_image': original_image
+            }
+            print(f"[FRAGMENT] Cached segment data and mask for file_id: {file_id}")
+        else:
+            # Use cached data
+            cached_data = cache[cache_key]
+            segment_data = cached_data['segment_data']
+            segments_mask = cached_data['segments_mask']
+            original_image = cached_data['original_image']
+            print(f"[FRAGMENT] Using cached segment data and mask for file_id: {file_id}")
+        
+        # Handle different possible data structures
+        segments_list = None
+        if isinstance(segment_data, dict):
+            if 'segments' in segment_data:
+                segments_list = segment_data['segments']
+            elif 'segment_data' in segment_data:
+                segments_list = segment_data['segment_data']
+            else:
+                for key in segment_data.keys():
+                    if isinstance(segment_data[key], list):
+                        segments_list = segment_data[key]
+                        break
+        elif isinstance(segment_data, list):
+            segments_list = segment_data
+            
+        if segments_list is None:
+            raise Exception(f"Could not find segments data in JSON structure. Available keys: {list(segment_data.keys()) if isinstance(segment_data, dict) else 'Data is not a dict'}")
+        
+        # Find the target segment
+        target_segment = None
+        for segment in segments_list:
+            if segment['id'] == segment_id:
+                target_segment = segment
+                break
+        
+        if not target_segment:
+            # Try alternative matching strategies
+            if isinstance(segment_id, str) and segment_id.isdigit():
+                segment_id_int = int(segment_id)
+                for segment in segments_list:
+                    if segment['id'] == segment_id_int:
+                        target_segment = segment
+                        break
+            
+            if not target_segment and isinstance(segment_id, str):
+                for segment in segments_list:
+                    if str(segment['id']) == segment_id:
+                        target_segment = segment
+                        break
+        
+        if not target_segment:
+            available_ids = [segment.get('id', 'NO_ID') for segment in segments_list]
+            raise Exception(f"Segment {segment_id} not found in {len(segments_list)} segments. Available IDs range: {min(available_ids) if available_ids else 'None'} to {max(available_ids) if available_ids else 'None'}")
+        
+        # Create mask for the specific segment ID - this preserves individual segment boundaries
+        mask = (segments_mask == segment_id)
+        
+        print(f"[FRAGMENT] Found {np.sum(mask)} pixels for individual segment {segment_id}")
+        
+        if np.sum(mask) == 0:
+            print(f"[FRAGMENT ERROR] No pixels found for segment {segment_id}")
+            return []
+        
+        # Get all pixel coordinates where mask is True
+        y_coords, x_coords = np.where(mask)
+        
+        # Extract original colors for each pixel from the original image
+        fragment_pixels = []
+        for x, y in zip(x_coords, y_coords):
+            # Get original RGB color from the source image
+            original_color = original_image[y, x]  # Note: numpy uses [y, x] indexing
+            fragment_pixels.append({
+                'x': int(x),
+                'y': int(y),
+                'color': f"rgb({original_color[0]}, {original_color[1]}, {original_color[2]})"
+            })
+        
+        # Create fragment data
+        fragment_data = [{
+            'type': 'fragment',  # Mark as fragment instead of stroke
+            'segment_id': segment_id,
+            'pixels': fragment_pixels,
+            'pixel_count': len(fragment_pixels),
+            'bounds': {
+                'min_x': int(np.min(x_coords)),
+                'max_x': int(np.max(x_coords)),
+                'min_y': int(np.min(y_coords)),
+                'max_y': int(np.max(y_coords))
+            }
+        }]
+        
+        print(f"[FRAGMENT SUCCESS] Generated fragment with {len(fragment_pixels)} original pixels for segment {segment_id}")
+        
+        return fragment_data
+    
     def _create_individual_segment_fill(self, mask, segment_info, segment_id):
         """
         Create fill data for individual segment - returns pixel coordinates and color for solid fill

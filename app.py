@@ -365,15 +365,15 @@ def draw_individual_segment():
         if not file_id or segment_id is None:
             return jsonify({'success': False, 'error': 'Missing file_id or segment_id'})
         
-        # Generate fill data for the individual segment (without color merging)
+        # Generate fragment data for the individual segment - always use original image pixels
         generator = DrawingEffectGenerator()
-        fill_data = generator.generate_individual_segment_strokes(
+        
+        # Individual Segments always use fragment mode to show original image pixels
+        fill_data = generator.generate_individual_segment_fragment(
             output_dir=app.config['OUTPUT_FOLDER'],
             file_id=file_id,
             segment_id=segment_id,
-            brush_type=brush_type,
-            external_cache=individual_segment_masks_cache,
-            stroke_density=stroke_density
+            external_cache=individual_segment_masks_cache
         )
         
         print(f"[INDIVIDUAL API] Generated data for segment {segment_id}: {len(fill_data)} items")
