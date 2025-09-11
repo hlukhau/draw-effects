@@ -2224,11 +2224,16 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         return;
     }
     
-    // Ensure minimum sprite size for visibility (but stay with sprites)
-    if (baseSize < 6) {
-        console.log(`🎨 Sprite size ${originalSize}px (<6), setting minimum to 6px`);
-        baseSize = 6;
+    // Ensure minimum brush width for visibility and increase overall size
+    const minBrushWidth = 6; // Minimum width for brush dots (in pixels)
+    if (baseSize < minBrushWidth) {
+        console.log(`🎨 Brush width ${originalSize}px (<${minBrushWidth}), setting minimum to ${minBrushWidth}px`);
+        baseSize = minBrushWidth;
     }
+    
+    // Increase brush size for better visibility (make brush dots bigger than original)
+    baseSize = Math.max(baseSize * 1.5, minBrushWidth); // 1.5x bigger, but at least minBrushWidth
+    console.log(`🎨 Final brush width: ${baseSize}px (original: ${originalSize}px)`);
     
     // Draw brush strokes as dots (exactly like pencil - use coordinates as-is)
     ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
@@ -2252,18 +2257,15 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         
         console.log(`🎨 Single point scaled: (${point.x}, ${point.y}) -> (${scaledX}, ${scaledY})`);
         
-        // Reset transform and draw at scaled coordinates
+        // Save current state, reset transform, draw circle, restore state
+        ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
         ctx.beginPath();
-        ctx.lineWidth = baseSize;
-        ctx.lineCap = 'round';
-        ctx.moveTo(scaledX, scaledY);
-        ctx.lineTo(scaledX + 0.1, scaledY); // Tiny line that appears as a dot
-        ctx.stroke();
+        ctx.arc(scaledX, scaledY, baseSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
         
-        // Restore transform
-        ctx.setTransform(transform);
+        ctx.restore(); // This restores the exact previous state
     } else {
         // Multiple points - draw thick lines with manual scaling (ctx.lineTo doesn't apply transforms)
         console.log(`🎨 Drawing brush stroke with ${stroke.points.length} points - applying manual scaling`);
@@ -2278,23 +2280,23 @@ async function drawBrushSprite(ctx, stroke, brushConfig) {
         
         console.log(`🎨 Scaled coordinates: (${scaledPoints[0].x}, ${scaledPoints[0].y}) to (${scaledPoints[1]?.x}, ${scaledPoints[1]?.y})`);
         
-        // Reset transform and draw at scaled coordinates
+        // Save current state, reset transform, draw circles, restore state
+        ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         
-        ctx.beginPath();
-        ctx.lineWidth = baseSize;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        
-        // Draw path through scaled points
-        ctx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
-        for (let i = 1; i < scaledPoints.length; i++) {
-            ctx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+        // Draw circles at each point (brush effect with dots)
+        for (let i = 0; i < scaledPoints.length; i++) {
+            const point = scaledPoints[i];
+            // Size variation for natural brush effect (bigger range for more visible dots)
+            const sizeVariation = 0.9 + Math.random() * 0.6; // 90% to 150%
+            const radius = (baseSize / 2) * sizeVariation;
+            
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
+            ctx.fill();
         }
-        ctx.stroke();
         
-        // Restore transform
-        ctx.setTransform(transform);
+        ctx.restore(); // This restores the exact previous state
         
         console.log(`🎨 Brush stroke drawn with manual scaling, lineWidth=${baseSize}`);
     }
