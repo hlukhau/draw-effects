@@ -81,6 +81,7 @@ function initializeEventListeners() {
     const videoDuration = document.getElementById('videoDuration');
     const strokeDensity = document.getElementById('strokeDensity');
     const videoFps = document.getElementById('videoFps');
+    const videoFormat = document.getElementById('videoFormat');
 
     // File input change
     fileInput.addEventListener('change', handleFileSelect);
@@ -116,6 +117,11 @@ function initializeEventListeners() {
 
     videoFps.addEventListener('change', function() {
         document.getElementById('fpsValue').textContent = this.value;
+    });
+
+    // Video format selector (no display update needed)
+    videoFormat.addEventListener('change', function() {
+        console.log('Video format changed to:', this.value);
     });
 
     // Canvas format selection change
@@ -1973,10 +1979,10 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         const brushConfig = brushTypes[brushType] || brushTypes.pencil;
         
         // Debug: Log brush type and stroke info with coordinates
-        console.log(`🎨 Processing stroke ${index + 1}/${brushStrokes.length}: type=${brushType}, currentBrushType=${canvasData.currentBrushType}, points=${stroke.points?.length || 0}, width=${stroke.width}`);
-        if (stroke.points && stroke.points.length > 0) {
-            console.log(`🎨 applyBrushStrokesFast - First point for ${brushType}: (${stroke.points[0].x}, ${stroke.points[0].y})`);
-        }
+//        console.log(`🎨 Processing stroke ${index + 1}/${brushStrokes.length}: type=${brushType}, currentBrushType=${canvasData.currentBrushType}, points=${stroke.points?.length || 0}, width=${stroke.width}`);
+//        if (stroke.points && stroke.points.length > 0) {
+//            console.log(`🎨 applyBrushStrokesFast - First point for ${brushType}: (${stroke.points[0].x}, ${stroke.points[0].y})`);
+//        }
         
         // Apply brush-specific effects
         ctx.globalAlpha = brushConfig.opacity;
@@ -1984,11 +1990,11 @@ function applyBrushStrokesFast(brushStrokes, segmentId) {
         
         if (brushType === 'brush') {
             // Use brush sprite rendering
-            console.log(`🎨 Using brush sprite rendering for stroke ${index + 1}`);
+//            console.log(`🎨 Using brush sprite rendering for stroke ${index + 1}`);
             drawBrushSprite(ctx, stroke, brushConfig);
         } else {
             // Use traditional line rendering for pencil
-            console.log(`🎨 Using pencil rendering for stroke ${index + 1}`);
+//            console.log(`🎨 Using pencil rendering for stroke ${index + 1}`);
             drawPencilStroke(ctx, stroke);
         }
         
@@ -2624,15 +2630,15 @@ function applySegmentFill(fillData, segmentId) {
 function drawPencilStroke(ctx, stroke) {
     // Debug: Log pencil stroke coordinates for comparison
     const transform = ctx.getTransform();
-    console.log(`✏️ drawPencilStroke - Context transform:`, {
-        scaleX: transform.a,
-        scaleY: transform.d,
-        translateX: transform.e,
-        translateY: transform.f
-    });
-    if (stroke.points.length > 0) {
-        console.log(`✏️ Pencil stroke points: first=(${stroke.points[0].x}, ${stroke.points[0].y}), count=${stroke.points.length}, width=${stroke.width}`);
-    }
+//    console.log(`✏️ drawPencilStroke - Context transform:`, {
+//        scaleX: transform.a,
+//        scaleY: transform.d,
+//        translateX: transform.e,
+//        translateY: transform.f
+//    });
+//    if (stroke.points.length > 0) {
+//        console.log(`✏️ Pencil stroke points: first=(${stroke.points[0].x}, ${stroke.points[0].y}), count=${stroke.points.length}, width=${stroke.width}`);
+//    }
     
     // Draw the actual brush stroke
     ctx.strokeStyle = stroke.color;
@@ -3467,6 +3473,7 @@ function drawHighlightBoundariesWithVideo(highlightSegments, videoDuration, vide
         segmentCount: highlightSegments.length,
         canvas: document.getElementById('drawingCanvas'),
         frameRate: videoFps,
+        videoFormat: document.getElementById('videoFormat').value,
         timeCompression: true,
         isCumulative: true
     });
@@ -3753,6 +3760,7 @@ function drawSegmentsWithVideo(sortedSegments, description, videoDuration, video
         segmentCount: sortedSegments.length,
         canvas: document.getElementById('drawingCanvas'),
         frameRate: videoFps,
+        videoFormat: document.getElementById('videoFormat').value,
         timeCompression: true,
         isCumulative: true // Enable cumulative mode
     });
@@ -4021,17 +4029,18 @@ function drawIndividualSmallSegments() {
         if (progressBarsDiv) progressBarsDiv.style.display = 'block';
         
         // Безопасное получение значений с fallback
-        const videoDurationSlider = document.getElementById('videoDurationSlider');
-        const videoFpsSlider = document.getElementById('videoFpsSlider');
+        const videoDurationElement = document.getElementById('videoDuration');
+        const videoFpsElement = document.getElementById('videoFps');
 
-        const videoDuration = videoDurationSlider ? parseFloat(videoDurationSlider.value) : 10.0; // default 10 seconds
-        const videoFps = videoFpsSlider ? parseInt(videoFpsSlider.value) : 30; // default 30 FPS
+        const videoDuration = videoDurationElement ? parseFloat(videoDurationElement.value) : 10.0; // default 10 seconds
+        const videoFps = videoFpsElement ? parseInt(videoFpsElement.value) : 60; // default 60 FPS
 
         const videoRecorder = new VideoRecorder({
             videoDuration: videoDuration,
             segmentCount: sortedSegments.length,
             canvas: document.getElementById('drawingCanvas'),
             frameRate: videoFps,
+            videoFormat: document.getElementById('videoFormat').value,
             timeCompression: true,
             isCumulative: true
         });
@@ -4144,17 +4153,18 @@ function drawIndividualSegments() {
         if (progressBarsDiv) progressBarsDiv.style.display = 'block';
         
         // Безопасное получение значений с fallback
-        const videoDurationSlider = document.getElementById('videoDurationSlider');
-        const videoFpsSlider = document.getElementById('videoFpsSlider');
+        const videoDurationElement = document.getElementById('videoDuration');
+        const videoFpsElement = document.getElementById('videoFps');
 
-        const videoDuration = videoDurationSlider ? parseFloat(videoDurationSlider.value) : 10.0; // default 10 seconds
-        const videoFps = videoFpsSlider ? parseInt(videoFpsSlider.value) : 30; // default 30 FPS
+        const videoDuration = videoDurationElement ? parseFloat(videoDurationElement.value) : 10.0; // default 10 seconds
+        const videoFps = videoFpsElement ? parseInt(videoFpsElement.value) : 60; // default 60 FPS
 
         const videoRecorder = new VideoRecorder({
             videoDuration: videoDuration,
             segmentCount: sortedSegments.length,
             canvas: document.getElementById('drawingCanvas'),
             frameRate: videoFps,
+            videoFormat: document.getElementById('videoFormat').value,
             timeCompression: true,
             isCumulative: true
         });
@@ -4550,7 +4560,16 @@ function generateVideoFromFrames() {
     const videoFps = parseInt(document.getElementById('videoFps').value);
     
     // Calculate frame distribution based on applied effects
-    const frameDistribution = calculateEffectBasedFrameDistribution(videoDuration, videoFps);
+    console.log('DEBUG: canvasData.appliedEffects =', canvasData.appliedEffects);
+    let frameDistribution = null;
+    if (canvasData.appliedEffects && canvasData.appliedEffects.length > 0) {
+        frameDistribution = calculateEffectBasedFrameDistribution(videoDuration, videoFps);
+        console.log('Using effect-based frame distribution for', canvasData.appliedEffects.length, 'effects');
+    } else {
+        console.log('No effects applied, using uniform frame distribution');
+        // Force null to ensure VideoRecorder uses uniform timing
+        frameDistribution = null;
+    }
     
     showAlert(`Generating video from ${canvasData.cumulativeFrames.length} captured frames with effect-based timing...`, 'info');
     console.log('Frame distribution:', frameDistribution);
@@ -4566,11 +4585,14 @@ function generateVideoFromFrames() {
     showVideoGenerationProgressWithPercent(0);
     
     // Create a video recorder for manual generation with effect-based distribution
+    const selectedVideoFormat = document.getElementById('videoFormat').value;
+    console.log('DEBUG: Selected video format =', selectedVideoFormat);
     const videoRecorder = new VideoRecorder({
         videoDuration: videoDuration,
         segmentCount: canvasData.cumulativeFrames.length,
         canvas: document.getElementById('drawingCanvas'),
         frameRate: videoFps,
+        videoFormat: selectedVideoFormat,
         timeCompression: true,
         isCumulative: true,
         frameDistribution: frameDistribution // Pass the calculated distribution
@@ -4746,9 +4768,17 @@ class VideoRecorder {
         this.segmentCount = options.segmentCount;
         this.canvas = options.canvas;
         this.frameRate = options.frameRate || 30;
+        this.videoFormat = options.videoFormat || 'webm'; // Default to webm
         this.timeCompression = options.timeCompression || false;
         this.isCumulative = options.isCumulative || false;
         this.frameDistribution = options.frameDistribution || null; // Effect-based frame distribution
+        
+        console.log('DEBUG VideoRecorder constructor:', {
+            videoDuration: this.videoDuration,
+            videoFormat: this.videoFormat,
+            frameRate: this.frameRate,
+            frameDistribution: this.frameDistribution ? 'present' : 'null'
+        });
         
         this.capturedFrames = [];
         this.isRecording = false;
@@ -4859,13 +4889,21 @@ class VideoRecorder {
             // Set background color
             ctx.fillStyle = canvasData.backgroundColor || '#ffffff';
             ctx.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
+
+            console.log('DEBUG: Using MIME type:', mimeType);
             
             // Create video stream from temporary canvas
             const stream = videoCanvas.captureStream(this.frameRate);
             
-            // Set up MediaRecorder with better quality settings
-            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 
-                            MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            // Set up MediaRecorder with better quality settings based on selected format
+            let mimeType;
+            if (this.videoFormat === 'mp4') {
+                mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
+            } else {
+                // Default to webm with best codec support
+                mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 
+                          MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            }
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: mimeType,
                 videoBitsPerSecond: 2500000
@@ -4924,8 +4962,17 @@ class VideoRecorder {
             // Create video stream from temporary canvas
             const stream = videoCanvas.captureStream(this.frameRate);
             
-            // Set up MediaRecorder
-            const mimeType = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            // Set up MediaRecorder based on selected format
+            let mimeType;
+            if (this.videoFormat === 'mp4') {
+                mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
+            } else {
+                // Default to webm with best codec support
+                mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 
+                          MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            }
+            
+            console.log('DEBUG: Using MIME type:', mimeType);
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType: mimeType,
                 videoBitsPerSecond: 2500000
@@ -5010,29 +5057,48 @@ class VideoRecorder {
         // Calculate how to distribute captured frames across target duration
         const frameStep = this.capturedFrames.length / totalFrames;
         
+        // ИСПРАВЛЕНИЕ: Рассчитываем правильный интервал на основе желаемой длительности видео
+        const correctFrameInterval = (this.videoDuration * 1000) / totalFrames; // ms per frame для точной длительности
+        
         console.log(`Playing back ${totalFrames} frames over ${this.videoDuration}s with progress tracking`);
+        console.log(`DEBUG: Using corrected frame interval: ${correctFrameInterval}ms (was ${frameInterval}ms)`);
+        console.log(`DEBUG: Captured frames: ${this.capturedFrames.length}, Target frames: ${totalFrames}`);
+        console.log(`DEBUG: Frame step: ${frameStep}`);
+
+        // Добавляем измерение времени для диагностики
+        const startTime = performance.now();
         
         for (let i = 0; i < totalFrames; i++) {
             // Calculate which captured frame to use
             const capturedFrameIndex = Math.floor(i * frameStep);
             const frameIndex = Math.min(capturedFrameIndex, this.capturedFrames.length - 1);
-            
+
             // Load and draw the frame
             await this.drawFrameToCanvas(ctx, this.capturedFrames[frameIndex]);
-            
+
             // Update progress
             const progress = ((i + 1) / totalFrames) * 100;
             if (progressCallback) {
                 progressCallback(progress);
             }
-            
-            // Wait for next frame timing
+
+            // ИСПРАВЛЕНИЕ: Используем абсолютное время вместо фиксированного интервала
             if (i < totalFrames - 1) {
-                await new Promise(resolve => setTimeout(resolve, frameInterval));
+                const targetTime = startTime + ((i + 1) * correctFrameInterval);
+                const currentTime = performance.now();
+                const waitTime = Math.max(0, targetTime - currentTime);
+
+                console.log(`Frame ${i+1}: target=${targetTime.toFixed(1)}, current=${currentTime.toFixed(1)}, wait=${waitTime.toFixed(1)}ms`);
+
+                if (waitTime > 0) {
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                }
             }
         }
         
-        console.log('Frame playback with progress completed');
+        const endTime = performance.now();
+        const actualDuration = (endTime - startTime) / 1000;
+        console.log(`Frame playback completed. Actual duration: ${actualDuration.toFixed(2)}s, Target: ${this.videoDuration}s`);
     }
     
     async playbackFramesWithEffectDistribution(videoCanvas, ctx, progressCallback, frameInterval) {
@@ -5299,7 +5365,12 @@ function showVideoResults(videoUrl) {
             downloadVideoBtn.onclick = () => {
                 const a = document.createElement('a');
                 a.href = videoUrl;
-                a.download = `drawing_animation_${Date.now()}.mp4`;
+
+                // ИСПРАВЛЕНИЕ: Используем правильное расширение на основе videoFormat
+                const videoFormat = document.getElementById('videoFormatSelect')?.value || 'webm';
+                const extension = videoFormat === 'mp4' ? 'mp4' : 'webm';
+                a.download = `drawing_animation_${Date.now()}.${extension}`;
+
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -6059,17 +6130,22 @@ function calculateEffectBasedFrameDistribution(videoDuration, videoFps) {
     const totalFrames = canvasData.cumulativeFrames.length;
     const appliedEffects = canvasData.appliedEffects;
     
-    // Calculate total time allocated to effects (3 seconds each)
-    const totalEffectTime = appliedEffects.length * 3;
-    
-    // Calculate remaining time for regular drawing frames
-    const remainingTime = Math.max(0, videoDuration - totalEffectTime);
-    
-    console.log(`Video duration: ${videoDuration}s, Effects: ${appliedEffects.length} (${totalEffectTime}s), Remaining: ${remainingTime}s`);
-    
-    // IMPORTANT: Calculate total video frames based on REQUESTED duration, not source frames
+    // FIXED: Calculate proportional time allocation within the requested duration
     const totalVideoFrames = videoDuration * videoFps;
-    const effectVideoFrames = 3 * videoFps; // Each effect gets exactly 3 seconds worth of video frames
+    
+    // If there are effects, allocate time proportionally
+    let effectVideoFrames;
+    if (appliedEffects.length > 0) {
+        // Each effect gets a proportional share, but minimum 1 second, maximum 3 seconds
+        const maxEffectTime = Math.min(3, videoDuration / appliedEffects.length);
+        const minEffectTime = Math.min(1, videoDuration / (appliedEffects.length + 1));
+        const effectTime = Math.max(minEffectTime, Math.min(maxEffectTime, 2)); // Default 2 seconds per effect
+        effectVideoFrames = Math.round(effectTime * videoFps);
+    } else {
+        effectVideoFrames = 0;
+    }
+    
+    console.log(`Video duration: ${videoDuration}s, Effects: ${appliedEffects.length}, Effect time each: ${effectVideoFrames/videoFps}s`);
     
     console.log(`Total video frames needed: ${totalVideoFrames}, Effect frames each: ${effectVideoFrames}`);
     
@@ -6144,11 +6220,46 @@ function calculateEffectBasedFrameDistribution(videoDuration, videoFps) {
         });
     }
     
-    // Verify total duration matches requested duration
-    const calculatedTotalFrames = distribution.reduce((sum, range) => sum + range.videoFrameCount, 0);
-    const calculatedDuration = calculatedTotalFrames / videoFps;
-    
-    console.log(`Calculated total frames: ${calculatedTotalFrames}, duration: ${calculatedDuration}s (requested: ${videoDuration}s)`);
+    // НОРМАЛИЗАЦИЯ: Принудительно подгоняем общее количество кадров под заданное время
+    const actualTotalFrames = distribution.reduce((sum, range) => sum + range.videoFrameCount, 0);
+    const targetFrames = videoDuration * videoFps;
+
+    if (actualTotalFrames !== targetFrames) {
+        const difference = targetFrames - actualTotalFrames;
+        console.log(`Normalizing frame count: actual=${actualTotalFrames}, target=${targetFrames}, diff=${difference}`);
+        
+        // Распределяем разницу пропорционально между всеми сегментами
+        if (difference !== 0) {
+            let remainingDiff = difference;
+            
+            // Сначала пытаемся распределить разницу пропорционально
+            distribution.forEach((range, index) => {
+                if (index < distribution.length - 1 && remainingDiff !== 0) {
+                    const adjustment = Math.round(difference * (range.videoFrameCount / actualTotalFrames));
+                    const actualAdjustment = Math.min(Math.abs(remainingDiff), Math.abs(adjustment)) * Math.sign(adjustment);
+                    range.videoFrameCount += actualAdjustment;
+                    remainingDiff -= actualAdjustment;
+                }
+                range.videoFrameCount = Math.max(1, range.videoFrameCount); // Минимум 1 кадр
+            });
+            
+            // Последний сегмент получает всю оставшуюся разницу
+            if (distribution.length > 0) {
+                distribution[distribution.length - 1].videoFrameCount += remainingDiff;
+                distribution[distribution.length - 1].videoFrameCount = Math.max(1, distribution[distribution.length - 1].videoFrameCount);
+            }
+            
+            // Обновляем duration для всех сегментов
+            distribution.forEach(range => {
+                range.duration = range.videoFrameCount / videoFps;
+            });
+        }
+    }
+
+    // Финальная проверка
+    const finalTotalFrames = distribution.reduce((sum, range) => sum + range.videoFrameCount, 0);
+    const finalDuration = finalTotalFrames / videoFps;
+    console.log(`FINAL: frames=${finalTotalFrames}, duration=${finalDuration}s (requested: ${videoDuration}s)`);
     
     return distribution;
 }

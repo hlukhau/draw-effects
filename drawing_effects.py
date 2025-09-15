@@ -1014,8 +1014,8 @@ class DrawingEffectGenerator:
         if not os.path.exists(outputs_dir):
             outputs_dir = output_dir  # fallback to original directory
         
-        print(f"Looking for segment files in: {outputs_dir}")
-        print(f"Files in directory: {os.listdir(outputs_dir) if os.path.exists(outputs_dir) else 'Directory not found'}")
+        # print(f"Looking for segment files in: {outputs_dir}")
+        # print(f"Files in directory: {os.listdir(outputs_dir) if os.path.exists(outputs_dir) else 'Directory not found'}")
         
         # CRITICAL FIX: Exclude boundary JSON files when looking for segment data
         json_files = [f for f in os.listdir(outputs_dir) 
@@ -1042,7 +1042,7 @@ class DrawingEffectGenerator:
         newest_json_file = json_files_with_time[0][0]
         
         json_path = os.path.join(outputs_dir, newest_json_file)
-        print(f"Loading segment data from: {json_path}")
+        # print(f"Loading segment data from: {json_path}")
         
         with open(json_path, 'r') as f:
             segment_data = json.load(f)
@@ -1123,7 +1123,7 @@ class DrawingEffectGenerator:
         newest_mean_color_file = mean_color_files_with_time[0][0]
         
         mean_color_path = os.path.join(outputs_dir, newest_mean_color_file)
-        print(f"Loading mean color image from: {mean_color_path}")
+        # print(f"Loading mean color image from: {mean_color_path}")
         
         mean_image = cv2.imread(mean_color_path)
         mean_image = cv2.cvtColor(mean_image, cv2.COLOR_BGR2RGB)
@@ -1145,7 +1145,7 @@ class DrawingEffectGenerator:
         # Analyze segment geometry and generate brush strokes with brush type
         brush_strokes = self._analyze_segment_and_create_strokes(mask, target_segment, brush_type, stroke_density)
         
-        print(f"[SUCCESS] Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
+        # print(f"[SUCCESS] Generated {len(brush_strokes)} {brush_type} brush strokes for segment {segment_id}")
         
         return brush_strokes
     

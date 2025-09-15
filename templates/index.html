@@ -60,10 +60,10 @@
                             <h6 class="text-primary mb-3"><i class="fas fa-video"></i> Параметры видео</h6>
                             <div class="row">
                                 <div class="col-md-4">
-                                    <label for="videoFps" class="form-label">Video FPS: <span id="fpsValue">30</span></label>
+                                    <label for="videoFps" class="form-label">Video FPS: <span id="fpsValue">60</span></label>
                                     <select class="form-select" id="videoFps">
-                                        <option value="30" selected>30 FPS</option>
-                                        <option value="60">60 FPS</option>
+                                        <option value="30">30 FPS</option>
+                                        <option value="60" selected>60 FPS</option>
                                     </select>
                                     <div class="form-text">Frames per second for smoother video</div>
                                 </div>
@@ -76,6 +76,16 @@
                                         <option value="fhd">Full HD (1920×1080)</option>
                                     </select>
                                     <div class="form-text">Canvas size for drawing and video output</div>
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-md-4">
+                                    <label for="videoFormat" class="form-label">Video Format</label>
+                                    <select class="form-select" id="videoFormat">
+                                        <option value="webm" selected>WebM</option>
+                                        <option value="mp4">MP4</option>
+                                    </select>
+                                    <div class="form-text">Output video file format</div>
                                 </div>
                                 <div class="col-md-4">
                                     <label for="videoDuration" class="form-label">Video Duration: <span id="durationValue">10</span>s</label>
